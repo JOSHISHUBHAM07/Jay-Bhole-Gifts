@@ -84,25 +84,47 @@ export default function TrackOrderPage() {
                             </div>
 
                             {/* Timeline */}
-                            <div className="relative pl-8">
+                            <div className="relative pl-8 mt-8">
                                 <div className="absolute left-[15px] top-0 bottom-0 w-0.5 bg-gradient-to-b from-[#FF6F91] via-[#C8A2FF] to-white/10" />
-                                {[
-                                    { status: "Order Placed", time: new Date(result.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }), done: true, icon: Package },
-                                    { status: "Processing", time: result.orderStatus !== "cancelled" ? "In Progress" : "—", done: result.orderStatus !== "cancelled", icon: Clock },
-                                    { status: "Shipped", time: ["shipped", "delivered"].includes(result.orderStatus?.toLowerCase()) ? "Done" : "—", done: ["shipped", "delivered"].includes(result.orderStatus?.toLowerCase()), icon: Truck },
-                                    { status: "Out for Delivery", time: result.orderStatus?.toLowerCase() === "delivered" ? "Done" : "—", done: result.orderStatus?.toLowerCase() === "delivered", icon: MapPin },
-                                    { status: "Delivered", time: result.orderStatus?.toLowerCase() === "delivered" ? "Done" : "—", done: result.orderStatus?.toLowerCase() === "delivered", icon: CheckCircle },
-                                ].map((step, i) => (
-                                    <motion.div key={step.status} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.15 }} className={`relative flex items-start gap-5 pb-8 last:pb-0 ${step.done ? "" : "opacity-40"}`}>
-                                        <div className={`absolute -left-8 w-8 h-8 rounded-full flex items-center justify-center shrink-0 z-10 ${step.done ? "bg-gradient-to-tr from-[#FF6F91] to-[#C8A2FF] shadow-[0_0_15px_rgba(255,111,145,0.3)]" : "bg-[#202028] border border-white/10"}`}>
-                                            <step.icon className="w-4 h-4 text-white" />
-                                        </div>
-                                        <div className="pt-1">
-                                            <h3 className="font-bold text-white">{step.status}</h3>
-                                            <p className="text-xs text-[#B5B5C0] mt-0.5">{step.time}</p>
-                                        </div>
-                                    </motion.div>
-                                ))}
+                                {result.timeline && result.timeline.length > 0 ? (
+                                    result.timeline.map((step: any, i: number) => {
+                                        const statusLower = step.status?.toLowerCase() || "";
+                                        const Icon = statusLower.includes('placed') ? Package
+                                            : statusLower.includes('shipped') ? Truck
+                                                : statusLower.includes('delivered') ? CheckCircle
+                                                    : Clock;
+                                        return (
+                                            <motion.div key={i} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.15 }} className="relative flex items-start gap-5 pb-8 last:pb-0">
+                                                <div className="absolute -left-8 w-8 h-8 rounded-full flex items-center justify-center shrink-0 z-10 bg-gradient-to-tr from-[#FF6F91] to-[#C8A2FF] shadow-[0_0_15px_rgba(255,111,145,0.3)] border border-white/10">
+                                                    <Icon className="w-4 h-4 text-white" />
+                                                </div>
+                                                <div className="pt-1">
+                                                    <h3 className="font-bold text-white text-lg">{step.status}</h3>
+                                                    <p className="text-sm text-[#B5B5C0] mt-1 pr-4">{step.description}</p>
+                                                    <p className="text-xs font-bold tracking-widest uppercase text-[#B5B5C0]/40 mt-3">{new Date(step.date).toLocaleString()}</p>
+                                                </div>
+                                            </motion.div>
+                                        );
+                                    })
+                                ) : (
+                                    [
+                                        { status: "Order Placed", time: new Date(result.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }), done: true, icon: Package },
+                                        { status: "Processing", time: result.orderStatus !== "cancelled" ? "In Progress" : "—", done: result.orderStatus !== "cancelled", icon: Clock },
+                                        { status: "Shipped", time: ["shipped", "delivered"].includes(result.orderStatus?.toLowerCase()) ? "Done" : "—", done: ["shipped", "delivered"].includes(result.orderStatus?.toLowerCase()), icon: Truck },
+                                        { status: "Out for Delivery", time: result.orderStatus?.toLowerCase() === "delivered" ? "Done" : "—", done: result.orderStatus?.toLowerCase() === "delivered", icon: MapPin },
+                                        { status: "Delivered", time: result.orderStatus?.toLowerCase() === "delivered" ? "Done" : "—", done: result.orderStatus?.toLowerCase() === "delivered", icon: CheckCircle },
+                                    ].map((step, i) => (
+                                        <motion.div key={step.status} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.15 }} className={`relative flex items-start gap-5 pb-8 last:pb-0 ${step.done ? "" : "opacity-40"}`}>
+                                            <div className={`absolute -left-8 w-8 h-8 rounded-full flex items-center justify-center shrink-0 z-10 ${step.done ? "bg-gradient-to-tr from-[#FF6F91] to-[#C8A2FF] shadow-[0_0_15px_rgba(255,111,145,0.3)]" : "bg-[#202028] border border-white/10"}`}>
+                                                <step.icon className="w-4 h-4 text-white" />
+                                            </div>
+                                            <div className="pt-1">
+                                                <h3 className="font-bold text-white">{step.status}</h3>
+                                                <p className="text-xs text-[#B5B5C0] mt-0.5">{step.time}</p>
+                                            </div>
+                                        </motion.div>
+                                    ))
+                                )}
                             </div>
                         </motion.div>
                     )}

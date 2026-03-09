@@ -15,6 +15,14 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
     const [customText, setCustomText] = useState("");
     const [isWishlisted, setIsWishlisted] = useState(false);
     const [loading, setLoading] = useState(true);
+
+    const [selectedVariant, setSelectedVariant] = useState<any>(null);
+    const [reviewRating, setReviewRating] = useState(5);
+    const [reviewComment, setReviewComment] = useState("");
+    const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+    const [reviewMsg, setReviewMsg] = useState({ text: "", type: "" });
+    const [relatedProducts, setRelatedProducts] = useState<any[]>([]);
+
     useEffect(() => {
         async function fetchProduct() {
             try {
@@ -25,14 +33,30 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
                         id: data._id,
                         name: data.name,
                         price: data.price,
-                        rating: data.rating || 4.8,
-                        reviews: data.reviews || 124,
+                        rating: data.averageRating || 4.8,
+                        reviews: data.numReviews || 0,
+                        reviewsList: data.reviews || [],
+                        variants: data.variants || [],
+                        stock: data.stock || 0,
                         description: data.description,
                         features: data.features || ["100% Premium Material", "Quality Assured", "Fast Shipping"],
                         images: data.images && data.images.length > 0 ? data.images : ["https://images.unsplash.com/photo-1627123424574-724758594e93?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80"],
                         category: data.category,
                         canCustomize: data.canCustomize || false,
                     });
+                    if (data.variants && data.variants.length > 0) {
+                        setSelectedVariant(data.variants[0]);
+                    }
+
+                    // Fetch Related Products
+                    try {
+                        const relRes = await fetch(`/api/products?category=${data.category}`);
+                        const relData = await relRes.json();
+                        if (Array.isArray(relData)) {
+                            setRelatedProducts(relData.filter((p: any) => p._id !== data._id).slice(0, 4));
+                        }
+                    } catch (e) { console.error("Failed to fetch related", e) }
+
                 }
             } catch (error) {
                 console.error("Failed to fetch product", error);
@@ -79,7 +103,22 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
                                     <Image src={product.images[activeImage]} alt={product.name} fill className="object-cover group-hover:scale-105 transition-transform duration-700" priority />
                                 </motion.div>
                             </AnimatePresence>
-                            <button onClick={() => setIsWishlisted(!isWishlisted)} className="absolute top-5 right-5 w-12 h-12 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white/50 hover:text-[#FF6F91] hover:border-[#FF6F91]/30 transition-all z-10">
+                            <button
+                                onClick={async () => {
+                                    setIsWishlisted(!isWishlisted);
+                                    try {
+                                        await fetch('/api/user/wishlist', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ productId: product.id })
+                                        });
+                                    } catch (e) {
+                                        console.error("Failed to update wishlist");
+                                        setIsWishlisted(isWishlisted); // Revert on failure
+                                    }
+                                }}
+                                className="absolute top-5 right-5 w-12 h-12 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white/50 hover:text-[#FF6F91] hover:border-[#FF6F91]/30 transition-all z-10"
+                            >
                                 <Heart className={`w-5 h-5 ${isWishlisted ? 'fill-[#FF6F91] text-[#FF6F91]' : ''}`} />
                             </button>
                         </div>
@@ -115,19 +154,53 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
                             </div>
                         )}
 
-                        {/* Actions */}
-                        <div className="flex flex-col sm:flex-row items-center gap-4 mb-6">
-                            <div className="flex items-center border border-white/10 rounded-full bg-white/5 p-1 w-full sm:w-32 h-14 shrink-0">
-                                <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/10 text-white transition-colors text-lg">-</button>
-                                <span className="flex-1 text-center font-bold text-white">{quantity}</span>
-                                <button onClick={() => setQuantity(quantity + 1)} className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/10 text-white transition-colors text-lg">+</button>
+                        {/* Variants */}
+                        {product.variants && product.variants.length > 0 && (
+                            <div className="mb-8">
+                                <h3 className="text-sm font-bold text-white mb-3 uppercase tracking-widest">Options</h3>
+                                <div className="flex flex-wrap gap-3">
+                                    {product.variants.map((v: any, idx: number) => {
+                                        const label = Object.entries(v.attributes).map(([k, val]) => `${val}`).join(" / ");
+                                        const isSelected = selectedVariant?.sku === v.sku;
+                                        return (
+                                            <button
+                                                key={idx}
+                                                onClick={() => setSelectedVariant(v)}
+                                                className={`px-4 py-2 rounded-xl border text-sm font-bold transition-all ${isSelected ? 'bg-white/10 border-[#FF6F91] text-white shadow-[0_0_10px_rgba(255,111,145,0.2)]' : 'bg-transparent border-white/[0.06] text-[#B5B5C0] hover:border-white/20 hover:text-white'}`}
+                                            >
+                                                {label} {v.priceAdjustment ? `(+$${v.priceAdjustment})` : ""}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
                             </div>
-                            <AddToCartButton
-                                product={{ id: product.id, name: product.name, price: product.price, image: product.images[0], category: product.category }}
-                                quantity={quantity}
-                                customization={customText}
-                            />
-                        </div>
+                        )}
+
+                        {/* Actions */}
+                        {((selectedVariant && selectedVariant.stock <= 0) || (!selectedVariant && product.stock <= 0)) ? (
+                            <div className="mb-6 py-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center justify-center text-red-400 font-bold tracking-widest uppercase">
+                                Out of Stock
+                            </div>
+                        ) : (
+                            <div className="flex flex-col sm:flex-row items-center gap-4 mb-6">
+                                <div className="flex items-center border border-white/10 rounded-full bg-white/5 p-1 w-full sm:w-32 h-14 shrink-0">
+                                    <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/10 text-white transition-colors text-lg">-</button>
+                                    <span className="flex-1 text-center font-bold text-white">{quantity}</span>
+                                    <button onClick={() => setQuantity(quantity + 1)} className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/10 text-white transition-colors text-lg">+</button>
+                                </div>
+                                <AddToCartButton
+                                    product={{
+                                        id: product.id,
+                                        name: product.name,
+                                        price: product.price + (selectedVariant?.priceAdjustment || 0),
+                                        image: product.images[0],
+                                        category: product.category
+                                    }}
+                                    quantity={quantity}
+                                    customization={customText + (selectedVariant ? ` [Option: ${Object.values(selectedVariant.attributes).join("/")}]` : "")}
+                                />
+                            </div>
+                        )}
 
                         {/* Guarantees */}
                         <div className="grid grid-cols-2 gap-4 pt-6 mt-8 border-t border-white/5">
@@ -142,6 +215,114 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
                         </div>
                     </div>
                 </div>
+
+                {/* Reviews Section */}
+                <div className="mt-20 pt-16 border-t border-white/5">
+                    <h2 className="text-3xl font-extrabold text-white mb-10">Customer Reviews</h2>
+                    <div className="grid lg:grid-cols-3 gap-12">
+                        <div className="lg:col-span-1 bg-[#1A1A20] p-8 rounded-2xl border border-white/[0.06] h-fit">
+                            <h3 className="text-xl font-bold text-white mb-2">Write a Review</h3>
+                            <p className="text-sm text-[#B5B5C0] mb-6">Share your experience with this product to help others.</p>
+
+                            <form onSubmit={async (e) => {
+                                e.preventDefault();
+                                setIsSubmittingReview(true);
+                                setReviewMsg({ text: "", type: "" });
+                                try {
+                                    const res = await fetch(`/api/products/${product.id}/reviews`, {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ rating: reviewRating, comment: reviewComment })
+                                    });
+                                    const data = await res.json();
+                                    if (res.ok) {
+                                        setReviewMsg({ text: "Review submitted successfully! Refresh to see.", type: "success" });
+                                        setReviewComment("");
+                                        setReviewRating(5);
+                                    } else {
+                                        setReviewMsg({ text: data.error || "Failed to submit review.", type: "error" });
+                                    }
+                                } catch (error) {
+                                    setReviewMsg({ text: "An error occurred.", type: "error" });
+                                } finally {
+                                    setIsSubmittingReview(false);
+                                }
+                            }} className="flex flex-col gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-[#B5B5C0] mb-2 uppercase tracking-widest">Rating (1-5)</label>
+                                    <div className="flex gap-2">
+                                        {[1, 2, 3, 4, 5].map(r => (
+                                            <button type="button" key={r} onClick={() => setReviewRating(r)} className="focus:outline-none">
+                                                <Star className={`w-6 h-6 ${r <= reviewRating ? 'fill-[#F7C873] text-[#F7C873]' : 'text-white/20'}`} />
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-[#B5B5C0] mb-2 uppercase tracking-widest">Comment</label>
+                                    <textarea required value={reviewComment} onChange={e => setReviewComment(e.target.value)} className="w-full bg-[#0F0F12] border border-white/10 rounded-xl p-4 text-white placeholder:text-white/20 focus:outline-none focus:border-[#FF6F91]/50 h-32" placeholder="What did you think?"></textarea>
+                                </div>
+                                <button type="submit" disabled={isSubmittingReview} className="w-full bg-white/5 border border-white/10 hover:bg-[#FF6F91] hover:border-[#FF6F91] text-white font-bold py-3 rounded-xl transition-all">
+                                    {isSubmittingReview ? "Submitting..." : "Submit Review"}
+                                </button>
+                                {reviewMsg.text && (
+                                    <div className={`text-sm mt-2 ${reviewMsg.type === 'error' ? 'text-red-400' : 'text-green-400'}`}>{reviewMsg.text}</div>
+                                )}
+                            </form>
+                        </div>
+
+                        <div className="lg:col-span-2 flex flex-col gap-6">
+                            {product.reviewsList && product.reviewsList.length > 0 ? (
+                                product.reviewsList.map((rev: any, i: number) => (
+                                    <div key={i} className="bg-[#1A1A20] p-6 rounded-2xl border border-white/[0.06]">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-[#FF6F91]/20 to-[#C8A2FF]/20 flex items-center justify-center text-white font-bold border border-white/10">
+                                                    {rev.userName.charAt(0)}
+                                                </div>
+                                                <div>
+                                                    <div className="font-bold text-white">{rev.userName}</div>
+                                                    <div className="text-xs text-[#B5B5C0]">{new Date(rev.createdAt).toLocaleDateString()}</div>
+                                                </div>
+                                            </div>
+                                            <div className="flex gap-1">
+                                                {[...Array(5)].map((_, idx) => (
+                                                    <Star key={idx} className={`w-4 h-4 ${idx < rev.rating ? 'fill-[#F7C873] text-[#F7C873]' : 'text-white/10'}`} />
+                                                ))}
+                                            </div>
+                                        </div>
+                                        <p className="text-[#B5B5C0] text-sm leading-relaxed">{rev.comment}</p>
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="text-center py-12 text-[#B5B5C0] bg-[#1A1A20] rounded-2xl border border-white/[0.06]">
+                                    No reviews yet. Be the first to review this product!
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Related Products Section */}
+                {relatedProducts.length > 0 && (
+                    <div className="mt-20 pt-16 border-t border-white/5">
+                        <h2 className="text-3xl font-extrabold text-white mb-10">You May Also Like</h2>
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+                            {relatedProducts.map(p => (
+                                <Link key={p._id} href={`/products/${p._id}`} className="group relative rounded-2xl overflow-hidden bg-[#1A1A20] border border-white/[0.06] hover:border-white/20 transition-all block">
+                                    <div className="relative aspect-square overflow-hidden bg-[#0F0F12]">
+                                        <Image src={p.images[0]} alt={p.name} fill sizes="(max-width: 768px) 50vw, 25vw" className="object-cover group-hover:scale-105 transition-transform duration-700" />
+                                    </div>
+                                    <div className="p-4">
+                                        <h3 className="text-white font-bold truncate mb-1">{p.name}</h3>
+                                        <div className="text-[#F7C873] font-extrabold">${p.price.toFixed(2)}</div>
+                                    </div>
+                                </Link>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
             </div>
         </div>
     );

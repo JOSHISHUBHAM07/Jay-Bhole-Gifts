@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { User, Package, Heart, Settings, LogOut, ShoppingBag, ChevronRight, Clock, Mail, Phone } from "lucide-react";
+import { User, Package, Heart, Settings, LogOut, ShoppingBag, ChevronRight, Clock, Mail, Phone, MapPin } from "lucide-react";
 
 const orders = [
     { id: "JB-2834", date: "Mar 04, 2026", total: "$130.00", status: "Delivered", items: 3 },
@@ -17,6 +17,7 @@ const wishlist = [
 const tabs = [
     { id: "orders", label: "My Orders", icon: Package },
     { id: "wishlist", label: "Wishlist", icon: Heart },
+    { id: "addresses", label: "Address Book", icon: MapPin },
     { id: "settings", label: "Settings", icon: Settings },
 ];
 
@@ -24,21 +25,30 @@ const statusColors: { [key: string]: string } = {
     Delivered: "bg-green-500/10 text-green-400 border-green-500/20",
     Shipped: "bg-blue-500/10 text-blue-400 border-blue-500/20",
     Processing: "bg-[#FF6F91]/10 text-[#FF6F91] border-[#FF6F91]/20",
+    Returned: "bg-orange-500/10 text-orange-400 border-orange-500/20",
+    Cancelled: "bg-red-500/10 text-red-400 border-red-500/20",
 };
 
 export default function ProfilePage() {
     const [activeTab, setActiveTab] = useState("orders");
     const [liveOrders, setLiveOrders] = useState<any[]>([]);
+    const [liveWishlist, setLiveWishlist] = useState<any[]>([]);
+    const [liveAddresses, setLiveAddresses] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [returningId, setReturningId] = useState<string | null>(null);
+    const [isAddingAddress, setIsAddingAddress] = useState(false);
+    const [addressForm, setAddressForm] = useState({ name: "", street: "", city: "", zip: "", isDefault: false });
+    const [isSubmittingAddress, setIsSubmittingAddress] = useState(false);
+
     useEffect(() => {
-        async function fetchUserOrders() {
+        async function fetchUserData() {
             try {
-                // Fetching orders for the dummy user ID used in checkout
-                const res = await fetch('/api/orders?userId=661234abcd567890ef123456');
-                if (res.ok) {
-                    const data = await res.json();
+                // Fetching orders
+                const resOrders = await fetch('/api/orders?userId=661234abcd567890ef123456');
+                if (resOrders.ok) {
+                    const data = await resOrders.json();
                     if (Array.isArray(data)) {
-                        const formatted = data.map(o => ({
+                        const formatted = data.map((o: any) => ({
                             id: o._id.substring(o._id.length - 6).toUpperCase(), // Shorten ID for UI
                             realId: o._id,
                             date: new Date(o.createdAt).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
@@ -49,16 +59,56 @@ export default function ProfilePage() {
                         setLiveOrders(formatted);
                     }
                 }
+
+                // Fetch Wishlist
+                const resWishlist = await fetch('/api/user/wishlist');
+                if (resWishlist.ok) {
+                    const data = await resWishlist.json();
+                    if (Array.isArray(data)) setLiveWishlist(data);
+                }
+
+                // Fetch Addresses
+                const resAddresses = await fetch('/api/user/addresses');
+                if (resAddresses.ok) {
+                    const data = await resAddresses.json();
+                    if (Array.isArray(data)) setLiveAddresses(data);
+                }
+
             } catch (error) {
-                console.error("Failed to fetch user orders", error);
+                console.error("Failed to fetch user data:", error);
             } finally {
                 setLoading(false);
             }
         }
-        fetchUserOrders();
+        fetchUserData();
     }, []);
 
+    const handleAddAddress = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsSubmittingAddress(true);
+        try {
+            const res = await fetch("/api/user/addresses", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(addressForm)
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setLiveAddresses(data.addresses || []);
+                setIsAddingAddress(false);
+                setAddressForm({ name: "", street: "", city: "", zip: "", isDefault: false });
+            } else {
+                alert("Failed to add address");
+            }
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setIsSubmittingAddress(false);
+        }
+    };
+
     const displayOrders = liveOrders.length > 0 ? liveOrders : (loading ? [] : orders);
+    const displayWishlist = liveWishlist.length > 0 ? liveWishlist : (loading ? [] : wishlist);
 
     return (
         <div className="bg-[#0F0F12] min-h-screen -mt-24 pt-32 pb-20">
@@ -111,7 +161,38 @@ export default function ProfilePage() {
                                         </div>
                                         <div className="flex items-center gap-4">
                                             <span className="font-extrabold text-[#F7C873]">{o.total}</span>
-                                            <span className={`px-3 py-1 rounded-full text-xs font-bold border ${statusColors[o.status]}`}>{o.status}</span>
+                                            <span className={`px-3 py-1 rounded-full text-xs font-bold border ${statusColors[o.status] || 'bg-white/10 text-white border-white/20'}`}>{o.status}</span>
+
+                                            {o.status === 'Delivered' && (
+                                                <button
+                                                    onClick={async () => {
+                                                        if (!confirm("Are you sure you want to return this order?")) return;
+                                                        setReturningId(o.id);
+                                                        try {
+                                                            const res = await fetch(`/api/orders/${o.realId}/return`, {
+                                                                method: 'POST',
+                                                                headers: { 'Content-Type': 'application/json' },
+                                                                body: JSON.stringify({ reason: "User triggered return via Profile." })
+                                                            });
+                                                            if (res.ok) {
+                                                                // Optimistic UI update
+                                                                setLiveOrders(prev => prev.map(order => order.id === o.id ? { ...order, status: 'Returned' } : order));
+                                                            } else {
+                                                                alert("Failed to process return.");
+                                                            }
+                                                        } catch (e) {
+                                                            alert("Error requesting return.");
+                                                        } finally {
+                                                            setReturningId(null);
+                                                        }
+                                                    }}
+                                                    disabled={returningId === o.id}
+                                                    className="px-4 py-1.5 bg-red-500/10 text-red-400 font-bold border border-red-500/30 rounded-full hover:bg-red-500 hover:text-white transition-all text-sm"
+                                                >
+                                                    {returningId === o.id ? "Processing..." : "Return"}
+                                                </button>
+                                            )}
+
                                             <button className="w-8 h-8 bg-white/5 rounded-full border border-white/10 text-[#B5B5C0] hover:text-white flex items-center justify-center transition-all">
                                                 <ChevronRight className="w-4 h-4" />
                                             </button>
@@ -126,15 +207,76 @@ export default function ProfilePage() {
                                 <div className="p-6 border-b border-white/5">
                                     <h2 className="text-xl font-extrabold text-white flex items-center gap-2"><Heart className="w-5 h-5 text-[#FF6F91]" /> My Wishlist</h2>
                                 </div>
-                                {wishlist.length === 0 ? (
-                                    <div className="p-12 text-center text-[#B5B5C0]">No items yet.</div>
+                                {displayWishlist.length === 0 ? (
+                                    <div className="p-12 text-center text-[#B5B5C0]">No items found in your wishlist.</div>
                                 ) : (
                                     <div className="p-6 grid sm:grid-cols-2 gap-4">
-                                        {wishlist.map((w, i) => (
+                                        {displayWishlist.map((w: any, i: number) => (
                                             <div key={i} className="flex gap-4 items-center bg-[#202028] p-4 rounded-xl border border-white/[0.06] hover:border-white/10 transition-all">
-                                                <div className="w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 bg-[#1A1A20]"><img src={w.image} alt={w.name} className="w-full h-full object-cover" /></div>
-                                                <div className="flex-1"><h3 className="font-bold text-white text-sm">{w.name}</h3><p className="text-[#F7C873] font-extrabold text-sm mt-1">{w.price}</p></div>
+                                                <div className="w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 bg-[#1A1A20]"><img src={w.images && w.images[0] ? w.images[0] : w.image} alt={w.name} className="w-full h-full object-cover" /></div>
+                                                <div className="flex-1"><h3 className="font-bold text-white text-sm truncate max-w-[120px]">{w.name}</h3><p className="text-[#F7C873] font-extrabold text-sm mt-1">${w.price}</p></div>
                                                 <button className="px-3 py-2 bg-white/5 border border-white/10 text-white font-bold text-xs rounded-full hover:bg-[#FF6F91] hover:border-[#FF6F91] transition-all"><ShoppingBag className="w-3.5 h-3.5" /></button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </motion.div>
+                        )}
+
+                        {activeTab === "addresses" && (
+                            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-[#1A1A20] rounded-2xl border border-white/[0.06] overflow-hidden">
+                                <div className="p-6 border-b border-white/5 flex justify-between items-center">
+                                    <h2 className="text-xl font-extrabold text-white flex items-center gap-2"><MapPin className="w-5 h-5 text-[#FF6F91]" /> Address Book</h2>
+                                    {!isAddingAddress && (
+                                        <button onClick={() => setIsAddingAddress(true)} className="text-xs font-bold bg-white/5 border border-white/10 px-4 py-2 rounded-full text-[#B5B5C0] hover:text-white hover:border-[#FF6F91]/50 transition-all">+ Add New</button>
+                                    )}
+                                </div>
+                                {isAddingAddress && (
+                                    <form onSubmit={handleAddAddress} className="p-6 bg-[#202028] border-b border-white/[0.06]">
+                                        <h3 className="font-bold text-white mb-4">Add New Address</h3>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                                            <div className="md:col-span-2">
+                                                <input required type="text" placeholder="Address Label (e.g. Home, Office)" value={addressForm.name} onChange={e => setAddressForm({ ...addressForm, name: e.target.value })} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-[#B5B5C0]/40 focus:outline-none focus:border-[#FF6F91]/50 font-bold" />
+                                            </div>
+                                            <div className="md:col-span-2">
+                                                <input required type="text" placeholder="Street Address" value={addressForm.street} onChange={e => setAddressForm({ ...addressForm, street: e.target.value })} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-[#B5B5C0]/40 focus:outline-none focus:border-[#FF6F91]/50 font-bold" />
+                                            </div>
+                                            <div>
+                                                <input required type="text" placeholder="City" value={addressForm.city} onChange={e => setAddressForm({ ...addressForm, city: e.target.value })} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-[#B5B5C0]/40 focus:outline-none focus:border-[#FF6F91]/50 font-bold" />
+                                            </div>
+                                            <div>
+                                                <input required type="text" placeholder="ZIP Code" value={addressForm.zip} onChange={e => setAddressForm({ ...addressForm, zip: e.target.value })} className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-[#B5B5C0]/40 focus:outline-none focus:border-[#FF6F91]/50 font-bold" />
+                                            </div>
+                                            <div className="md:col-span-2 flex items-center justify-between pt-2">
+                                                <label className="flex items-center gap-2 text-[#B5B5C0] cursor-pointer font-bold">
+                                                    <input type="checkbox" checked={addressForm.isDefault} onChange={e => setAddressForm({ ...addressForm, isDefault: e.target.checked })} className="w-4 h-4 rounded bg-white/5 border-white/10 accent-[#FF6F91]" />
+                                                    Set as default address
+                                                </label>
+                                                <div className="flex gap-2">
+                                                    <button type="button" onClick={() => setIsAddingAddress(false)} className="px-4 py-2 font-bold text-[#B5B5C0] hover:text-white transition-all">Cancel</button>
+                                                    <button type="submit" disabled={isSubmittingAddress} className="px-6 py-2 font-bold text-white bg-[#FF6F91] rounded-full hover:bg-[#FF6F91]/90 shadow-[0_0_15px_rgba(255,111,145,0.4)] disabled:opacity-50 transition-all">{isSubmittingAddress ? "Saving..." : "Save Address"}</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </form>
+                                )}
+                                {liveAddresses.length === 0 && !isAddingAddress ? (
+                                    <div className="p-12 text-center text-[#B5B5C0]">You have not saved any addresses yet.</div>
+                                ) : (
+                                    <div className="p-6 grid gap-4">
+                                        {liveAddresses.map((addr: any, i: number) => (
+                                            <div key={i} className={`flex flex-col md:flex-row justify-between p-4 rounded-xl border transition-all ${addr.isDefault ? 'bg-[#FF6F91]/5 border-[#FF6F91]/30' : 'bg-[#202028] border-white/[0.06] hover:border-white/10'}`}>
+                                                <div className="mb-4 md:mb-0">
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <h3 className="font-bold text-white">{addr.name}</h3>
+                                                        {addr.isDefault && <span className="text-[10px] uppercase tracking-wider font-bold bg-[#FF6F91] text-white px-2 py-0.5 rounded-sm">Default</span>}
+                                                    </div>
+                                                    <p className="text-sm text-[#B5B5C0]">{addr.street}</p>
+                                                    <p className="text-sm text-[#B5B5C0]">{addr.city}, {addr.zip}</p>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <button className="text-xs font-bold text-[#B5B5C0] hover:text-red-400 bg-white/5 px-3 py-1.5 rounded-md transition-all">Delete</button>
+                                                </div>
                                             </div>
                                         ))}
                                     </div>

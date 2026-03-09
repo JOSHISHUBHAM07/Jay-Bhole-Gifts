@@ -17,6 +17,15 @@ export default function CheckoutPage() {
     const [formData, setFormData] = useState({ name: "", email: "", street: "", city: "", zip: "" });
     const [mounted, setMounted] = useState(false);
 
+    // Address Book
+    const [savedAddresses, setSavedAddresses] = useState<any[]>([]);
+    const [selectedAddressId, setSelectedAddressId] = useState<string>("new");
+
+    // Promo code state
+    const [promoCode, setPromoCode] = useState("");
+    const [discount, setDiscount] = useState(0);
+    const [promoMessage, setPromoMessage] = useState({ text: "", type: "" });
+
     useEffect(() => { setMounted(true); const s = document.createElement("script"); s.src = "https://checkout.razorpay.com/v1/checkout.js"; s.async = true; document.body.appendChild(s); }, []);
 
     // Redirect to cart if empty on mount
@@ -26,8 +35,46 @@ export default function CheckoutPage() {
         }
     }, [mounted, cartItems, orderComplete, router]);
 
+    // Fetch user addresses
+    useEffect(() => {
+        async function fetchAddresses() {
+            try {
+                const res = await fetch("/api/user/addresses");
+                if (res.ok) {
+                    const data = await res.json();
+                    if (Array.isArray(data) && data.length > 0) {
+                        setSavedAddresses(data);
+                        const defaultOne = data.find(a => a.isDefault);
+                        if (defaultOne) {
+                            setSelectedAddressId(defaultOne._id);
+                            setFormData({ name: defaultOne.name, email: "", street: defaultOne.street, city: defaultOne.city, zip: defaultOne.zip });
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error("Failed to load addresses", e);
+            }
+        }
+        if (mounted) fetchAddresses();
+    }, [mounted]);
+
     const shipping = cartTotal > 100 ? 0 : 15;
-    const finalTotal = cartTotal + shipping;
+    const finalTotal = Math.max(0, cartTotal + shipping - discount);
+
+    const applyPromo = (e: React.FormEvent) => {
+        e.preventDefault();
+        const code = promoCode.trim().toUpperCase();
+        if (code === "GIFT10") {
+            setDiscount(cartTotal * 0.10);
+            setPromoMessage({ text: "10% discount applied!", type: "success" });
+        } else if (code === "AURA20") {
+            setDiscount(20);
+            setPromoMessage({ text: "$20 flat discount applied!", type: "success" });
+        } else {
+            setDiscount(0);
+            setPromoMessage({ text: "Invalid or expired promo code.", type: "error" });
+        }
+    };
 
     // Map Cart items to Order schema format
     const orderProducts = cartItems.map(item => ({
@@ -102,16 +149,61 @@ export default function CheckoutPage() {
                         {step === 1 && (
                             <motion.div key="s1" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="p-8 md:p-12">
                                 <h2 className="text-2xl font-extrabold text-white mb-8 flex items-center gap-2"><MapPin className="w-5 h-5 text-[#FF6F91]" /> Shipping Information</h2>
-                                <form className="grid grid-cols-1 md:grid-cols-2 gap-6" onSubmit={(e) => { e.preventDefault(); setStep(2); }}>
-                                    <div className="md:col-span-2"><label className="block text-xs font-bold text-[#B5B5C0]/60 mb-2 uppercase tracking-widest">Full Name</label><input required type="text" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} placeholder="John Doe" className={inputClass} /></div>
-                                    <div className="md:col-span-2"><label className="block text-xs font-bold text-[#B5B5C0]/60 mb-2 uppercase tracking-widest">Email</label><input required type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} placeholder="john@example.com" className={inputClass} /></div>
-                                    <div className="md:col-span-2"><label className="block text-xs font-bold text-[#B5B5C0]/60 mb-2 uppercase tracking-widest">Street</label><input required type="text" value={formData.street} onChange={e => setFormData({ ...formData, street: e.target.value })} placeholder="123 Gifting St" className={inputClass} /></div>
-                                    <div><label className="block text-xs font-bold text-[#B5B5C0]/60 mb-2 uppercase tracking-widest">City</label><input required type="text" value={formData.city} onChange={e => setFormData({ ...formData, city: e.target.value })} placeholder="Dahod" className={inputClass} /></div>
-                                    <div><label className="block text-xs font-bold text-[#B5B5C0]/60 mb-2 uppercase tracking-widest">ZIP</label><input required type="text" value={formData.zip} onChange={e => setFormData({ ...formData, zip: e.target.value })} placeholder="389151" className={inputClass} /></div>
-                                    <div className="md:col-span-2 pt-6 border-t border-white/5 flex justify-end">
-                                        <button type="submit" className="bg-white/5 border border-white/10 text-white px-8 py-4 rounded-full font-bold hover:bg-[#FF6F91] hover:border-[#FF6F91] hover:shadow-[0_0_20px_rgba(255,111,145,0.3)] transition-all flex items-center gap-2">Continue <ChevronRight className="w-4 h-4" /></button>
+
+                                {savedAddresses.length > 0 && (
+                                    <div className="mb-8 p-6 bg-[#202028] rounded-xl border border-white/[0.06]">
+                                        <h3 className="text-sm font-bold text-[#B5B5C0] uppercase tracking-widest mb-4">Saved Addresses</h3>
+                                        <div className="flex flex-col gap-3">
+                                            {savedAddresses.map(addr => (
+                                                <div
+                                                    key={addr._id}
+                                                    onClick={() => {
+                                                        setSelectedAddressId(addr._id);
+                                                        setFormData({ name: addr.name, email: formData.email, street: addr.street, city: addr.city, zip: addr.zip });
+                                                    }}
+                                                    className={`p-4 rounded-xl border cursor-pointer transition-all flex items-start gap-4 ${selectedAddressId === addr._id ? 'bg-white/10 border-[#FF6F91]' : 'bg-transparent border-white/10 hover:border-white/30'}`}
+                                                >
+                                                    <div className={`w-5 h-5 rounded-full border-2 mt-0.5 flex items-center justify-center shrink-0 ${selectedAddressId === addr._id ? 'border-[#FF6F91]' : 'border-white/30'}`}>
+                                                        {selectedAddressId === addr._id && <div className="w-2.5 h-2.5 bg-[#FF6F91] rounded-full" />}
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="font-bold text-white text-sm">{addr.name}</h4>
+                                                        <p className="text-[#B5B5C0] text-sm mt-1">{addr.street}, {addr.city} {addr.zip}</p>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                            <div
+                                                onClick={() => { setSelectedAddressId("new"); setFormData({ name: "", email: formData.email, street: "", city: "", zip: "" }); }}
+                                                className={`p-4 rounded-xl border cursor-pointer transition-all flex items-center gap-4 ${selectedAddressId === "new" ? 'bg-white/10 border-[#FF6F91]' : 'bg-transparent border-white/10 hover:border-white/30'}`}
+                                            >
+                                                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${selectedAddressId === "new" ? 'border-[#FF6F91]' : 'border-white/30'}`}>
+                                                    {selectedAddressId === "new" && <div className="w-2.5 h-2.5 bg-[#FF6F91] rounded-full" />}
+                                                </div>
+                                                <span className="font-bold text-white text-sm">Use a new address</span>
+                                            </div>
+                                        </div>
                                     </div>
-                                </form>
+                                )}
+
+                                <AnimatePresence mode="wait">
+                                    <form className="grid grid-cols-1 md:grid-cols-2 gap-6" onSubmit={(e) => { e.preventDefault(); setStep(2); }}>
+                                        {selectedAddressId === "new" && (
+                                            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6 pb-6 overflow-hidden">
+                                                <div className="md:col-span-2"><label className="block text-xs font-bold text-[#B5B5C0]/60 mb-2 uppercase tracking-widest">Full Name</label><input required type="text" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} placeholder="John Doe" className={inputClass} /></div>
+                                                <div className="md:col-span-2"><label className="block text-xs font-bold text-[#B5B5C0]/60 mb-2 uppercase tracking-widest">Email (Required for tracking)</label><input required type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} placeholder="john@example.com" className={inputClass} /></div>
+                                                <div className="md:col-span-2"><label className="block text-xs font-bold text-[#B5B5C0]/60 mb-2 uppercase tracking-widest">Street</label><input required type="text" value={formData.street} onChange={e => setFormData({ ...formData, street: e.target.value })} placeholder="123 Gifting St" className={inputClass} /></div>
+                                                <div><label className="block text-xs font-bold text-[#B5B5C0]/60 mb-2 uppercase tracking-widest">City</label><input required type="text" value={formData.city} onChange={e => setFormData({ ...formData, city: e.target.value })} placeholder="Dahod" className={inputClass} /></div>
+                                                <div><label className="block text-xs font-bold text-[#B5B5C0]/60 mb-2 uppercase tracking-widest">ZIP</label><input required type="text" value={formData.zip} onChange={e => setFormData({ ...formData, zip: e.target.value })} placeholder="389151" className={inputClass} /></div>
+                                            </motion.div>
+                                        )}
+                                        {selectedAddressId !== "new" && (
+                                            <div className="md:col-span-2"><label className="block text-xs font-bold text-[#B5B5C0]/60 mb-2 uppercase tracking-widest">Confirm your Email (For tracking notifications)</label><input required type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} placeholder="john@example.com" className={inputClass} /></div>
+                                        )}
+                                        <div className="md:col-span-2 pt-6 border-t border-white/5 flex justify-end">
+                                            <button type="submit" className="bg-white/5 border border-white/10 text-white px-8 py-4 rounded-full font-bold hover:bg-[#FF6F91] hover:border-[#FF6F91] hover:shadow-[0_0_20px_rgba(255,111,145,0.3)] transition-all flex items-center gap-2">Continue <ChevronRight className="w-4 h-4" /></button>
+                                        </div>
+                                    </form>
+                                </AnimatePresence>
                             </motion.div>
                         )}
                         {step === 2 && (
@@ -124,9 +216,50 @@ export default function CheckoutPage() {
                                     <div className="bg-[#202028] p-6 rounded-xl border border-white/[0.06] mb-8">
                                         <div className="flex items-center gap-2 mb-4 text-white font-bold"><ShieldCheck className="w-5 h-5 text-[#FF6F91]" /> Secure Checkout via Razorpay</div>
                                         <p className="text-[#B5B5C0] text-sm mb-4">We process payments securely through Razorpay's trusted gateway.</p>
-                                        <div className="bg-[#1A1A20] rounded-xl p-4 flex justify-between items-center border border-white/[0.06]">
-                                            <span className="font-bold text-[#B5B5C0]">Total</span>
-                                            <span className="text-2xl font-extrabold text-[#F7C873]">${cartTotal.toFixed(2)}</span>
+
+                                        {/* Promo Code Input */}
+                                        <div className="flex items-center gap-2 mb-6 pb-6 border-b border-white/[0.06]">
+                                            <input
+                                                type="text"
+                                                placeholder="Enter Promo Code"
+                                                value={promoCode}
+                                                onChange={(e) => setPromoCode(e.target.value)}
+                                                className="flex-1 px-4 py-3 bg-[#1A1A20] border border-white/10 rounded-xl text-white placeholder:text-[#B5B5C0]/40 focus:outline-none focus:border-[#FF6F91]/50 text-sm font-bold uppercase"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={applyPromo}
+                                                className="bg-white/5 border border-white/10 text-white px-6 py-3 rounded-xl font-bold hover:bg-[#FF6F91] hover:border-[#FF6F91] transition-all text-sm whitespace-nowrap"
+                                            >
+                                                Apply
+                                            </button>
+                                        </div>
+                                        {promoMessage.text && (
+                                            <div className={`text-sm mb-6 ${promoMessage.type === 'error' ? 'text-red-400' : 'text-green-400'}`}>
+                                                {promoMessage.text}
+                                            </div>
+                                        )}
+
+                                        <div className="bg-[#1A1A20] rounded-xl p-4 flex flex-col gap-3 border border-white/[0.06]">
+                                            <div className="flex justify-between items-center text-[#B5B5C0] text-sm">
+                                                <span>Subtotal</span>
+                                                <span>${cartTotal.toFixed(2)}</span>
+                                            </div>
+                                            <div className="flex justify-between items-center text-[#B5B5C0] text-sm">
+                                                <span>Shipping</span>
+                                                <span>{shipping === 0 ? "Free" : `$${shipping.toFixed(2)}`}</span>
+                                            </div>
+                                            {discount > 0 && (
+                                                <div className="flex justify-between items-center text-green-400 text-sm font-bold">
+                                                    <span>Discount</span>
+                                                    <span>-${discount.toFixed(2)}</span>
+                                                </div>
+                                            )}
+                                            <div className="w-full h-px bg-white/[0.06] my-1" />
+                                            <div className="flex justify-between items-center">
+                                                <span className="font-bold text-[#B5B5C0]">Final Total</span>
+                                                <span className="text-2xl font-extrabold text-[#F7C873]">${finalTotal.toFixed(2)}</span>
+                                            </div>
                                         </div>
                                     </div>
                                     <div className="bg-[#202028] p-4 rounded-xl border border-white/[0.06] mb-8">

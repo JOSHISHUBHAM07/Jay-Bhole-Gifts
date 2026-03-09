@@ -50,15 +50,28 @@ export async function PATCH(
             return NextResponse.json({ error: "orderStatus is required" }, { status: 400 });
         }
 
-        const order = await Order.findByIdAndUpdate(
-            id,
-            { orderStatus },
-            { new: true } // Return updated document
-        );
+        const order = await Order.findById(id);
 
         if (!order) {
             return NextResponse.json({ error: "Order not found" }, { status: 404 });
         }
+
+        order.orderStatus = orderStatus;
+
+        // Add to timeline
+        let description = `Order status updated to ${orderStatus}.`;
+        if (orderStatus === 'shipped') description = "Your order has been shipped and is on the way!";
+        if (orderStatus === 'delivered') description = "Your order has been delivered successfully.";
+        if (orderStatus === 'cancelled') description = "Your order was cancelled.";
+
+        if (!order.timeline) order.timeline = [];
+        order.timeline.push({
+            status: orderStatus.charAt(0).toUpperCase() + orderStatus.slice(1),
+            description: description,
+            date: new Date()
+        });
+
+        await order.save();
 
         return NextResponse.json(order);
     } catch (error) {

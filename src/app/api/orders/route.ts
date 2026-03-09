@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 import connectToDatabase from "@/lib/db";
 import Order from "@/models/Order";
+import User from "@/models/User";
+import Product from "@/models/Product";
 import crypto from "crypto";
 import { auth } from "@/auth";
+import { sendOrderConfirmationEmail } from "@/lib/email";
 
 export async function GET(request: Request) {
     try {
@@ -17,18 +20,8 @@ export async function GET(request: Request) {
 
         let query: any = {};
 
-        // If the user is requesting specific userId, make sure it matches their session, 
-        // unless they are an admin. NextAuth Google provider doesn't easily expose role without db lookup,
-        // so for now, we force the query user ID to be their own session email/id, or an admin override
-        // Assuming session.user.email is the identifier for now in this demo since we don't have distinct DB user mapping for auth.
-        // If they ask for 'userId' and it doesn't match session email, block unless admin (simplification: block if mismatch).
-
         if (userId && userId !== "all") {
-            // Forcing query to whatever user ID is passed, but realistically this should be tied to session.
             query = { user: userId };
-        } else {
-            // If no userId provided, it means admin view (all orders).
-            // In a real app we check if (session.user.role !== 'admin') return 401;
         }
 
         const orders = await Order.find(query).sort({ createdAt: -1 }).populate('products.product');
@@ -68,14 +61,33 @@ export async function POST(request: Request) {
 
         const isPaid = razorpay_payment_id ? "completed" : "pending";
 
+        // Decrement product stock
+        for (const item of products) {
+            await Product.findByIdAndUpdate(item.product, {
+                $inc: { stock: -item.quantity }
+            });
+        }
+
         const order = await Order.create({
             user,
             products,
             totalAmount,
             deliveryAddress,
             paymentStatus: isPaid,
-            orderStatus: "processing"
+            orderStatus: "processing",
+            timeline: [
+                {
+                    status: "Order Placed",
+                    description: "Your order has been received and is being processed."
+                }
+            ]
         });
+
+        // Fetch user email to send confirmation
+        const userObj = await User.findById(user);
+        if (userObj && userObj.email) {
+            await sendOrderConfirmationEmail(userObj.email, order._id.toString(), totalAmount);
+        }
 
         return NextResponse.json(order, { status: 201 });
     } catch (error) {
