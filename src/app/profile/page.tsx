@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { User, Package, Heart, Settings, LogOut, ShoppingBag, ChevronRight, Clock, Mail, Phone } from "lucide-react";
 
@@ -28,6 +28,37 @@ const statusColors: { [key: string]: string } = {
 
 export default function ProfilePage() {
     const [activeTab, setActiveTab] = useState("orders");
+    const [liveOrders, setLiveOrders] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    useEffect(() => {
+        async function fetchUserOrders() {
+            try {
+                // Fetching orders for the dummy user ID used in checkout
+                const res = await fetch('/api/orders?userId=661234abcd567890ef123456');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (Array.isArray(data)) {
+                        const formatted = data.map(o => ({
+                            id: o._id.substring(o._id.length - 6).toUpperCase(), // Shorten ID for UI
+                            realId: o._id,
+                            date: new Date(o.createdAt).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
+                            total: `$${o.totalAmount.toFixed(2)}`,
+                            status: o.orderStatus.charAt(0).toUpperCase() + o.orderStatus.slice(1),
+                            items: o.products ? o.products.reduce((acc: number, p: any) => acc + p.quantity, 0) : 0,
+                        }));
+                        setLiveOrders(formatted);
+                    }
+                }
+            } catch (error) {
+                console.error("Failed to fetch user orders", error);
+            } finally {
+                setLoading(false);
+            }
+        }
+        fetchUserOrders();
+    }, []);
+
+    const displayOrders = liveOrders.length > 0 ? liveOrders : (loading ? [] : orders);
 
     return (
         <div className="bg-[#0F0F12] min-h-screen -mt-24 pt-32 pb-20">
@@ -55,8 +86,8 @@ export default function ProfilePage() {
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id)}
                                     className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl font-bold text-sm transition-all mb-1 ${activeTab === tab.id
-                                            ? "bg-white/5 text-[#FF6F91]"
-                                            : "text-[#B5B5C0] hover:text-white hover:bg-white/5"
+                                        ? "bg-white/5 text-[#FF6F91]"
+                                        : "text-[#B5B5C0] hover:text-white hover:bg-white/5"
                                         }`}
                                 >
                                     <tab.icon className="w-5 h-5" /> {tab.label}
@@ -72,7 +103,7 @@ export default function ProfilePage() {
                                 <div className="p-6 border-b border-white/5">
                                     <h2 className="text-xl font-extrabold text-white flex items-center gap-2"><Clock className="w-5 h-5 text-[#FF6F91]" /> Order History</h2>
                                 </div>
-                                {orders.map((o) => (
+                                {displayOrders.map((o) => (
                                     <div key={o.id} className="flex flex-col md:flex-row items-start md:items-center justify-between p-6 border-b border-white/5 last:border-0 hover:bg-white/[0.02] transition-colors">
                                         <div className="flex flex-col gap-1 mb-3 md:mb-0">
                                             <span className="font-extrabold text-white">#{o.id}</span>

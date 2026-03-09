@@ -1,36 +1,55 @@
 "use client";
 
-import { useState, use } from "react";
+import { useState, use, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { Star, Truck, Shield, ChevronRight, Share2, Heart, Gift } from "lucide-react";
 import AddToCartButton from "@/components/ui/AddToCartButton";
 
-const getProductDetails = (id: string) => ({
-    id,
-    name: "Personalized Leather Wallet",
-    price: 45.0,
-    rating: 4.8,
-    reviews: 124,
-    description: "Crafted from premium full-grain leather, this classic bifold wallet is designed to last a lifetime. Features multiple card slots, two bill compartments, and a sleek profile. Make it truly unique with custom monogramming.",
-    features: ["100% Full-grain premium leather", "RFID blocking technology", "6 card slots, 2 slip pockets", "Dimensions: 4.5\" x 3.5\" x 0.5\""],
-    images: [
-        "https://images.unsplash.com/photo-1627123424574-724758594e93?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
-        "https://images.unsplash.com/photo-1605333553428-ee182068aa80?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
-        "https://images.unsplash.com/photo-1559590407-e4359d9cda7d?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80",
-    ],
-    category: "Accessories",
-    canCustomize: true,
-});
-
 export default function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const unwrappedParams = use(params);
-    const product = getProductDetails(unwrappedParams.id);
+    const [product, setProduct] = useState<any>(null);
     const [activeImage, setActiveImage] = useState(0);
     const [quantity, setQuantity] = useState(1);
     const [customText, setCustomText] = useState("");
     const [isWishlisted, setIsWishlisted] = useState(false);
+    const [loading, setLoading] = useState(true);
+    useEffect(() => {
+        async function fetchProduct() {
+            try {
+                const res = await fetch(`/api/products/${unwrappedParams.id}`);
+                const data = await res.json();
+                if (data && !data.error) {
+                    setProduct({
+                        id: data._id,
+                        name: data.name,
+                        price: data.price,
+                        rating: data.rating || 4.8,
+                        reviews: data.reviews || 124,
+                        description: data.description,
+                        features: data.features || ["100% Premium Material", "Quality Assured", "Fast Shipping"],
+                        images: data.images && data.images.length > 0 ? data.images : ["https://images.unsplash.com/photo-1627123424574-724758594e93?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80"],
+                        category: data.category,
+                        canCustomize: data.canCustomize || false,
+                    });
+                }
+            } catch (error) {
+                console.error("Failed to fetch product", error);
+            } finally {
+                setLoading(false);
+            }
+        }
+        fetchProduct();
+    }, [unwrappedParams.id]);
+
+    if (loading) {
+        return <div className="min-h-screen bg-[#0F0F12] flex items-center justify-center"><div className="w-12 h-12 border-4 border-[#FF6F91]/20 border-t-[#FF6F91] rounded-full animate-spin" /></div>;
+    }
+
+    if (!product) {
+        return <div className="min-h-screen bg-[#0F0F12] flex items-center justify-center text-white text-2xl font-bold">Product Not Found</div>;
+    }
 
     return (
         <div className="bg-[#0F0F12] min-h-screen -mt-24 pt-32 pb-20">
@@ -48,7 +67,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
                     {/* Image Gallery */}
                     <div className="flex flex-col-reverse md:flex-row gap-4">
                         <div className="flex md:flex-col gap-3 overflow-x-auto md:overflow-visible hide-scrollbar">
-                            {product.images.map((img, idx) => (
+                            {product.images.map((img: string, idx: number) => (
                                 <button key={idx} onClick={() => setActiveImage(idx)} className={`relative w-20 h-20 rounded-xl overflow-hidden flex-shrink-0 border-2 transition-all ${activeImage === idx ? "border-[#FF6F91] shadow-[0_0_15px_rgba(255,111,145,0.3)]" : "border-white/10 opacity-50 hover:opacity-100"}`}>
                                     <Image src={img} alt={`Thumb ${idx + 1}`} fill className="object-cover" />
                                 </button>
@@ -97,33 +116,28 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
                         )}
 
                         {/* Actions */}
-                        <div className="flex items-center gap-4 mb-6">
-                            <div className="flex items-center border border-white/10 rounded-full bg-white/5 p-1 w-32 h-14">
+                        <div className="flex flex-col sm:flex-row items-center gap-4 mb-6">
+                            <div className="flex items-center border border-white/10 rounded-full bg-white/5 p-1 w-full sm:w-32 h-14 shrink-0">
                                 <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/10 text-white transition-colors text-lg">-</button>
-                                <span className="w-10 text-center font-bold text-white">{quantity}</span>
+                                <span className="flex-1 text-center font-bold text-white">{quantity}</span>
                                 <button onClick={() => setQuantity(quantity + 1)} className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/10 text-white transition-colors text-lg">+</button>
-                                <AddToCartButton
-                                    product={{ id: product.id, name: product.name, price: product.price, image: product.images[0], category: product.category }}
-                                    quantity={quantity}
-                                    customization={customText}
-                                    className="flex-1 bg-gradient-to-r from-[#FF6F91] to-[#C8A2FF] text-white py-4 rounded-full font-bold shadow-[0_0_20px_rgba(255,111,145,0.3)] hover:shadow-[0_0_30px_rgba(255,111,145,0.5)] transition-all text-lg hover:scale-[1.02]"
-                                />
                             </div>
+                            <AddToCartButton
+                                product={{ id: product.id, name: product.name, price: product.price, image: product.images[0], category: product.category }}
+                                quantity={quantity}
+                                customization={customText}
+                            />
+                        </div>
 
-                            <button className="w-full bg-white/5 border border-white/10 text-white py-4 rounded-full font-bold hover:bg-[#FF6F91] hover:border-[#FF6F91] hover:shadow-[0_0_20px_rgba(255,111,145,0.3)] transition-all mb-10">
-                                Buy it now ✨
-                            </button>
-
-                            {/* Guarantees */}
-                            <div className="grid grid-cols-2 gap-4 pt-6 border-t border-white/5">
-                                <div className="flex items-center gap-3 p-4 bg-[#1A1A20] rounded-xl border border-white/[0.06]">
-                                    <Truck className="w-5 h-5 text-[#C8A2FF]" />
-                                    <div><h4 className="font-bold text-white text-sm">Free Delivery</h4><p className="text-xs text-[#B5B5C0]">3-5 days</p></div>
-                                </div>
-                                <div className="flex items-center gap-3 p-4 bg-[#1A1A20] rounded-xl border border-white/[0.06]">
-                                    <Shield className="w-5 h-5 text-[#F7C873]" />
-                                    <div><h4 className="font-bold text-white text-sm">Quality Guarantee</h4><p className="text-xs text-[#B5B5C0]">30-day returns</p></div>
-                                </div>
+                        {/* Guarantees */}
+                        <div className="grid grid-cols-2 gap-4 pt-6 mt-8 border-t border-white/5">
+                            <div className="flex items-center gap-3 p-4 bg-[#1A1A20] rounded-xl border border-white/[0.06]">
+                                <Truck className="w-5 h-5 text-[#C8A2FF]" />
+                                <div><h4 className="font-bold text-white text-sm">Free Delivery</h4><p className="text-xs text-[#B5B5C0]">3-5 days</p></div>
+                            </div>
+                            <div className="flex items-center gap-3 p-4 bg-[#1A1A20] rounded-xl border border-white/[0.06]">
+                                <Shield className="w-5 h-5 text-[#F7C873]" />
+                                <div><h4 className="font-bold text-white text-sm">Quality Guarantee</h4><p className="text-xs text-[#B5B5C0]">30-day returns</p></div>
                             </div>
                         </div>
                     </div>

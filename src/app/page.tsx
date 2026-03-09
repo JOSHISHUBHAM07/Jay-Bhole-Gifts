@@ -150,6 +150,41 @@ export default function HomePage() {
   const heroY = useTransform(scrollYProgress, [0, 1], [0, 150]);
   const heroOpacity = useTransform(scrollYProgress, [0, 0.8], [1, 0]);
 
+  const [liveFeatured, setLiveFeatured] = useState<any[]>([]);
+  const [liveTrending, setLiveTrending] = useState<any[]>([]);
+
+  useEffect(() => {
+    async function fetchProducts() {
+      try {
+        const res = await fetch('/api/products');
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          // Map DB model to ProductCard props
+          const formatted = data.map((p: any) => ({
+            id: p._id,
+            name: p.name,
+            price: p.price,
+            rating: p.rating || 4.8,
+            image: p.images && p.images.length > 0 ? p.images[0] : "https://images.unsplash.com/photo-1549007994-cb92caebd54b?w=500&q=80",
+            category: p.category,
+            isNew: p.isPopular
+          }));
+
+          // Split into two rows arbitrarily for presentation
+          setLiveFeatured(formatted.slice(0, 4));
+          setLiveTrending(formatted.slice(4, 8));
+        }
+      } catch (error) {
+        console.error("Failed to fetch products", error);
+      }
+    }
+    fetchProducts();
+  }, []);
+
+  // Fallback to mocks if no DB data yet
+  const featured = liveFeatured.length > 0 ? liveFeatured : featuredProducts;
+  const trending = liveTrending.length > 0 ? liveTrending : trendingProducts;
+
   return (
     <div className="bg-[#0F0F12] -mt-24 overflow-hidden">
       {/* ═══════════════ HERO ═══════════════ */}
@@ -266,7 +301,7 @@ export default function HomePage() {
           </AnimatedSection>
 
           <StaggeredGrid className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {featuredProducts.map((product) => (
+            {featured.map((product) => (
               <StaggeredItem key={product.id}>
                 <ProductCard {...product} />
               </StaggeredItem>
@@ -313,7 +348,7 @@ export default function HomePage() {
           </AnimatedSection>
 
           <div className="flex gap-6 overflow-x-auto pb-4 hide-scrollbar snap-x snap-mandatory">
-            {trendingProducts.map((product, i) => (
+            {trending.map((product, i) => (
               <AnimatedSection key={product.id} delay={i * 0.1} className="min-w-[280px] md:min-w-[300px] snap-start">
                 <ProductCard {...product} />
               </AnimatedSection>

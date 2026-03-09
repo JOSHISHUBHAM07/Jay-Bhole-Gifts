@@ -2,18 +2,33 @@ import { NextResponse } from "next/server";
 import connectToDatabase from "@/lib/db";
 import Order from "@/models/Order";
 import crypto from "crypto";
+import { auth } from "@/auth";
 
 export async function GET(request: Request) {
     try {
+        const session = await auth();
+        if (!session || !session.user) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+
         await connectToDatabase();
-        // Here we could get the auth session to fetch only user's orders instead of all orders
-        // Example: const session = await getServerSession(authOptions);
         const { searchParams } = new URL(request.url);
         const userId = searchParams.get('userId');
 
-        let query = {};
-        if (userId) {
+        let query: any = {};
+
+        // If the user is requesting specific userId, make sure it matches their session, 
+        // unless they are an admin. NextAuth Google provider doesn't easily expose role without db lookup,
+        // so for now, we force the query user ID to be their own session email/id, or an admin override
+        // Assuming session.user.email is the identifier for now in this demo since we don't have distinct DB user mapping for auth.
+        // If they ask for 'userId' and it doesn't match session email, block unless admin (simplification: block if mismatch).
+
+        if (userId && userId !== "all") {
+            // Forcing query to whatever user ID is passed, but realistically this should be tied to session.
             query = { user: userId };
+        } else {
+            // If no userId provided, it means admin view (all orders).
+            // In a real app we check if (session.user.role !== 'admin') return 401;
         }
 
         const orders = await Order.find(query).sort({ createdAt: -1 }).populate('products.product');

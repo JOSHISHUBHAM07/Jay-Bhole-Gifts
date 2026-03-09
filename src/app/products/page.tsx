@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, Suspense, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Filter, SlidersHorizontal, ChevronDown, Sparkles } from "lucide-react";
@@ -26,8 +26,36 @@ function ProductListingContent() {
     const [activeCategory, setActiveCategory] = useState(categories.find(c => c.toLowerCase() === initialCategory.toLowerCase()) || "All");
     const [activeSort, setActiveSort] = useState("Featured");
     const [isFilterOpen, setIsFilterOpen] = useState(false);
+    const [liveProducts, setLiveProducts] = useState<any[]>([]);
 
-    const filteredProducts = allProducts.filter((p) => {
+    // Fetch live products
+    useEffect(() => {
+        async function fetchProducts() {
+            try {
+                const res = await fetch('/api/products');
+                const data = await res.json();
+                if (Array.isArray(data)) {
+                    const formatted = data.map((p: any) => ({
+                        id: p._id,
+                        name: p.name,
+                        price: p.price,
+                        rating: p.rating || 4.8,
+                        image: p.images && p.images.length > 0 ? p.images[0] : "https://images.unsplash.com/photo-1549007994-cb92caebd54b?w=500&q=80",
+                        category: p.category,
+                        isNew: p.isPopular
+                    }));
+                    setLiveProducts(formatted);
+                }
+            } catch (error) {
+                console.error("Failed to fetch products", error);
+            }
+        }
+        fetchProducts();
+    }, []);
+
+    const sourceProducts = liveProducts.length > 0 ? liveProducts : allProducts;
+
+    const filteredProducts = sourceProducts.filter((p) => {
         if (activeCategory === "All") return true;
         if (activeCategory === "Trending") return p.rating > 4.7;
         if (activeCategory.toLowerCase() === "personalized") return p.name.toLowerCase().includes("personalized") || p.name.toLowerCase().includes("custom");
