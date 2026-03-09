@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
-import { connectToDatabase } from "@/lib/db";
+import connectToDatabase from "@/lib/db";
 import User from "@/models/User";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/auth";
+import { auth } from "@/auth";
 
 // GET user's addresses
 export async function GET() {
     try {
-        const session = await getServerSession(authOptions);
+        const session = await auth();
         if (!session || !session.user) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
@@ -29,7 +28,7 @@ export async function GET() {
 // Add a new address
 export async function POST(req: Request) {
     try {
-        const session = await getServerSession(authOptions);
+        const session = await auth();
         if (!session || !session.user) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }

@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { connectToDatabase } from "@/lib/db";
+import connectToDatabase from "@/lib/db";
 import Product from "@/models/Product";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/auth";
+import { auth } from "@/auth";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     try {
-        const session = await getServerSession(authOptions);
+        const session = await auth();
         if (!session || !session.user) {
             return NextResponse.json({ error: "Unauthorized. Please log in to leave a review." }, { status: 401 });
         }
@@ -29,7 +28,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
         // Check if user already reviewed
         const alreadyReviewed = product.reviews?.find(
-            (r: any) => r.user.toString() === session.user.id
+            (r: any) => r.user.toString() === session.user?.id
         );
 
         if (alreadyReviewed) {
@@ -37,8 +36,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         }
 
         const review = {
-            user: session.user.id,
-            userName: session.user.name || "Anonymous",
+            user: session.user?.id,
+            userName: session.user?.name || "Anonymous",
             rating: Number(rating),
             comment,
         };
