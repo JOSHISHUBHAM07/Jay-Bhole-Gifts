@@ -1,0 +1,70 @@
+import { NextResponse } from "next/server";
+import connectToDatabase from "@/lib/db";
+import Order from "@/models/Order";
+import crypto from "crypto";
+
+export async function GET(request: Request) {
+    try {
+        await connectToDatabase();
+        // Here we could get the auth session to fetch only user's orders instead of all orders
+        // Example: const session = await getServerSession(authOptions);
+        const { searchParams } = new URL(request.url);
+        const userId = searchParams.get('userId');
+
+        let query = {};
+        if (userId) {
+            query = { user: userId };
+        }
+
+        const orders = await Order.find(query).sort({ createdAt: -1 }).populate('products.product');
+        return NextResponse.json(orders);
+    } catch (error) {
+        return NextResponse.json({ error: "Failed to fetch orders" }, { status: 500 });
+    }
+}
+
+export async function POST(request: Request) {
+    try {
+        await connectToDatabase();
+        const body = await request.json();
+
+        const {
+            razorpay_payment_id,
+            razorpay_order_id,
+            razorpay_signature,
+            user,
+            products,
+            totalAmount,
+            deliveryAddress
+        } = body;
+
+        // Verify Razorpay signature if payment details are present
+        if (razorpay_payment_id && razorpay_order_id && razorpay_signature) {
+            const secret = process.env.RAZORPAY_KEY_SECRET || "fallback_secret";
+            const generated_signature = crypto
+                .createHmac("sha256", secret)
+                .update(razorpay_order_id + "|" + razorpay_payment_id)
+                .digest("hex");
+
+            if (generated_signature !== razorpay_signature) {
+                return NextResponse.json({ error: "Payment verification failed" }, { status: 400 });
+            }
+        }
+
+        const isPaid = razorpay_payment_id ? "completed" : "pending";
+
+        const order = await Order.create({
+            user,
+            products,
+            totalAmount,
+            deliveryAddress,
+            paymentStatus: isPaid,
+            orderStatus: "processing"
+        });
+
+        return NextResponse.json(order, { status: 201 });
+    } catch (error) {
+        console.error("Order creation error:", error);
+        return NextResponse.json({ error: "Failed to create order" }, { status: 500 });
+    }
+}
