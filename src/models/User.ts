@@ -1,9 +1,9 @@
 import mongoose, { Schema, Document } from "mongoose";
 
 export interface IUser extends Document {
+    clerkId: string;
     name: string;
     email: string;
-    password?: string;
     phone?: string;
     role: "user" | "admin";
     wishlist?: mongoose.Types.ObjectId[];
@@ -20,9 +20,9 @@ export interface IUser extends Document {
 
 const UserSchema: Schema = new Schema(
     {
+        clerkId: { type: String, required: true, unique: true },
         name: { type: String, required: true },
         email: { type: String, required: true, unique: true },
-        password: { type: String }, // Optional for OAuth
         phone: { type: String },
         role: { type: String, enum: ["user", "admin"], default: "user" },
         wishlist: [{ type: mongoose.Schema.Types.ObjectId, ref: "Product" }],

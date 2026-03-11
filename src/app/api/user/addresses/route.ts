@@ -1,18 +1,18 @@
 import { NextResponse } from "next/server";
 import connectToDatabase from "@/lib/db";
 import User from "@/models/User";
-import { auth } from "@/auth";
+import { auth } from "@clerk/nextjs/server";
 
 // GET user's addresses
 export async function GET() {
     try {
-        const session = await auth();
-        if (!session || !session.user) {
+        const { userId } = await auth();
+        if (!userId) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
         await connectToDatabase();
-        const user = await User.findById(session.user.id);
+        const user = await User.findOne({ clerkId: userId });
 
         if (!user) {
             return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -28,8 +28,8 @@ export async function GET() {
 // Add a new address
 export async function POST(req: Request) {
     try {
-        const session = await auth();
-        if (!session || !session.user) {
+        const { userId } = await auth();
+        if (!userId) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
@@ -41,7 +41,7 @@ export async function POST(req: Request) {
         }
 
         await connectToDatabase();
-        const user = await User.findById(session.user.id);
+        const user = await User.findOne({ clerkId: userId });
 
         if (!user) {
             return NextResponse.json({ error: "User not found" }, { status: 404 });

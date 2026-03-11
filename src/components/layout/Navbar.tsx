@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { ShoppingCart, Search, Menu, X, Gift, LogOut, LayoutDashboard, UserCircle } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useCart } from "@/context/CartContext";
-import { useSession, signOut } from "next-auth/react";
+import { SignInButton, UserButton, useUser } from "@clerk/nextjs";
 
 const navLinks = [
   { href: "/", label: "Home" },
@@ -23,9 +23,8 @@ export default function Navbar() {
   const [searchQuery, setSearchQuery] = useState("");
   const { cartCount } = useCart();
   const [mounted, setMounted] = useState(false);
-  const { data: session } = useSession();
+  const { isSignedIn, user } = useUser();
   const router = useRouter();
-  const userMenuRef = useRef<HTMLDivElement>(null);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,16 +39,9 @@ export default function Navbar() {
   useEffect(() => {
     setMounted(true);
     const handleScroll = () => setIsScrolled(window.scrollY > 30);
-    const handleClick = (e: MouseEvent) => {
-      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
-        setUserMenuOpen(false);
-      }
-    };
     window.addEventListener("scroll", handleScroll);
-    document.addEventListener("mousedown", handleClick);
     return () => {
       window.removeEventListener("scroll", handleScroll);
-      document.removeEventListener("mousedown", handleClick);
     };
   }, []);
 
@@ -111,50 +103,23 @@ export default function Navbar() {
           </div>
 
           {/* Session-aware Auth State */}
-          {mounted && session?.user ? (
-            <div className="relative hidden sm:block" ref={userMenuRef}>
-              <button
-                onClick={() => setUserMenuOpen(!userMenuOpen)}
-                className="flex items-center gap-2 bg-white/5 border border-white/10 text-white px-3 py-2 rounded-xl font-semibold hover:bg-white/10 transition-all text-sm"
-              >
-                <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-[#FF6F91] to-[#C8A2FF] flex items-center justify-center text-white text-xs font-bold">
-                  {session.user.name?.[0]?.toUpperCase() || "U"}
-                </div>
-                <span className="max-w-[80px] truncate">{session.user.name?.split(" ")[0]}</span>
-              </button>
-              <AnimatePresence>
-                {userMenuOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 8, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 8, scale: 0.95 }}
-                    className="absolute right-0 mt-2 w-48 bg-[#1A1A20] border border-white/10 rounded-2xl p-2 shadow-2xl"
-                  >
-                    <Link href="/profile" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-2 w-full px-3 py-2.5 text-sm text-[#B5B5C0] hover:text-white hover:bg-white/5 rounded-xl transition-all">
-                      <UserCircle className="w-4 h-4" /> My Profile
-                    </Link>
-                    {(session.user as any).role === "admin" && (
-                      <Link href="/admin" onClick={() => setUserMenuOpen(false)} className="flex items-center gap-2 w-full px-3 py-2.5 text-sm text-[#B5B5C0] hover:text-white hover:bg-white/5 rounded-xl transition-all">
-                        <LayoutDashboard className="w-4 h-4" /> Admin Panel
-                      </Link>
-                    )}
-                    <div className="border-t border-white/[0.06] mt-1 pt-1">
-                      <button onClick={() => signOut({ callbackUrl: "/" })} className="flex items-center gap-2 w-full px-3 py-2.5 text-sm text-red-400 hover:bg-red-500/10 rounded-xl transition-all">
-                        <LogOut className="w-4 h-4" /> Sign Out
-                      </button>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+          {mounted && isSignedIn ? (
+            <div className="relative hidden sm:block">
+              <UserButton 
+                appearance={{
+                  elements: {
+                    userButtonAvatarBox: "w-9 h-9 shadow-[0_0_15px_rgba(255,111,145,0.3)]",
+                  }
+                }}
+              />
             </div>
-          ) : (
-            <Link
-              href="/login"
-              className="hidden sm:flex items-center gap-2 bg-white/5 border border-white/10 text-white px-5 py-2.5 rounded-xl font-semibold hover:bg-[#FF6F91] hover:border-[#FF6F91] hover:shadow-[0_0_20px_rgba(255,111,145,0.3)] transition-all text-sm"
-            >
-              Sign In
-            </Link>
-          )}
+          ) : mounted ? (
+            <SignInButton mode="modal">
+              <button className="hidden sm:flex items-center gap-2 bg-white/5 border border-white/10 text-white px-5 py-2.5 rounded-xl font-semibold hover:bg-[#FF6F91] hover:border-[#FF6F91] hover:shadow-[0_0_20px_rgba(255,111,145,0.3)] transition-all text-sm">
+                Sign In
+              </button>
+            </SignInButton>
+          ) : null}
 
           <Link
             href="/cart"
@@ -215,26 +180,17 @@ export default function Navbar() {
               </Link>
             ))}
             <div className="border-t border-white/10 mt-2 pt-4 flex flex-col gap-2">
-              {session?.user ? (
-                <>
-                  <Link href="/profile" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-3 px-4 py-3 text-[#B5B5C0] hover:text-white hover:bg-white/5 rounded-xl transition-all">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#FF6F91] to-[#C8A2FF] flex items-center justify-center text-white text-sm font-bold">
-                      {session.user.name?.[0]?.toUpperCase()}
-                    </div>
-                    <div>
-                      <p className="font-semibold text-white text-sm">{session.user.name}</p>
-                      <p className="text-xs text-[#B5B5C0]/60">View Profile</p>
-                    </div>
-                  </Link>
-                  <button onClick={() => { signOut({ callbackUrl: "/" }); setMobileMenuOpen(false); }} className="flex items-center gap-2 px-4 py-3 text-red-400 hover:bg-red-500/10 rounded-xl transition-all text-sm font-semibold">
-                    <LogOut className="w-4 h-4" /> Sign Out
+              {mounted && isSignedIn ? (
+                <div className="flex justify-center py-2">
+                  <UserButton />
+                </div>
+              ) : mounted ? (
+                <SignInButton mode="modal">
+                  <button onClick={() => setMobileMenuOpen(false)} className="flex items-center justify-center gap-2 bg-gradient-to-r from-[#FF6F91] to-[#C8A2FF] text-white px-6 py-3.5 rounded-xl font-bold w-full">
+                    Sign In
                   </button>
-                </>
-              ) : (
-                <Link href="/login" onClick={() => setMobileMenuOpen(false)} className="flex items-center justify-center gap-2 bg-gradient-to-r from-[#FF6F91] to-[#C8A2FF] text-white px-6 py-3.5 rounded-xl font-bold">
-                  Sign In
-                </Link>
-              )}
+                </SignInButton>
+              ) : null}
             </div>
           </motion.div>
         )}

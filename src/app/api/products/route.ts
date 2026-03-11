@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import connectToDatabase from "@/lib/db";
 import Product from "@/models/Product";
-import { auth } from "@/auth";
+import { auth } from "@clerk/nextjs/server";
+import User from "@/models/User";
 
 export async function GET(request: Request) {
     try {
@@ -71,8 +72,12 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
     try {
-        const session = await auth();
-        if (!session || !session.user || (session.user as any).role !== "admin") {
+        const { userId } = await auth();
+        if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+        await connectToDatabase();
+        const mongoUser = await User.findOne({ clerkId: userId });
+        if (!mongoUser || mongoUser.role !== "admin") {
             return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
         }
 

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import connectToDatabase from "@/lib/db";
 import Order from "@/models/Order";
-import { auth } from "@/auth";
+import { auth } from "@clerk/nextjs/server";
+import User from "@/models/User";
 
 // GET single order for Tracking
 export async function GET(
@@ -35,15 +36,18 @@ export async function PATCH(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const session = await auth();
-        if (!session || !session.user || (session.user as any).role !== "admin") {
+        const { userId } = await auth();
+        if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+        await connectToDatabase();
+        const mongoUser = await User.findOne({ clerkId: userId });
+        if (!mongoUser || mongoUser.role !== "admin") {
             return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
         }
 
         await connectToDatabase();
         const { id } = await params;
         const body = await request.json();
-
         const { orderStatus } = body;
 
         if (!orderStatus) {
@@ -86,8 +90,12 @@ export async function DELETE(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const session = await auth();
-        if (!session || !session.user || (session.user as any).role !== "admin") {
+        const { userId } = await auth();
+        if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+        await connectToDatabase();
+        const mongoUser = await User.findOne({ clerkId: userId });
+        if (!mongoUser || mongoUser.role !== "admin") {
             return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
         }
 

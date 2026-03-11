@@ -1,17 +1,17 @@
 import { NextResponse } from "next/server";
 import connectToDatabase from "@/lib/db";
 import User from "@/models/User";
-import { auth } from "@/auth";
+import { auth } from "@clerk/nextjs/server";
 
 export async function GET() {
     try {
-        const session = await auth();
-        if (!session || !session.user) {
+        const { userId } = await auth();
+        if (!userId) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
         await connectToDatabase();
-        const user = await User.findById(session.user.id).select("-password -wishlist -addresses");
+        const user = await User.findOne({ clerkId: userId }).select("-password -wishlist -addresses");
 
         if (!user) {
             return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -26,8 +26,8 @@ export async function GET() {
 
 export async function PUT(req: Request) {
     try {
-        const session = await auth();
-        if (!session || !session.user) {
+        const { userId } = await auth();
+        if (!userId) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
@@ -37,8 +37,8 @@ export async function PUT(req: Request) {
         await connectToDatabase();
 
         // Cannot update email as it is the unique identifier for OAuth/Credentials
-        const updatedUser = await User.findByIdAndUpdate(
-            session.user.id,
+        const updatedUser = await User.findOneAndUpdate(
+            { clerkId: userId },
             { name, phone },
             { new: true, runValidators: true }
         ).select("-password -wishlist -addresses");

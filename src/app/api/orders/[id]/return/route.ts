@@ -1,15 +1,15 @@
 import { NextResponse } from "next/server";
 import connectToDatabase from "@/lib/db";
 import Order from "@/models/Order";
-import { auth } from "@/auth";
+import { auth } from "@clerk/nextjs/server";
 
 export async function POST(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const session = await auth();
-        if (!session || !session.user) {
+        const { userId } = await auth();
+        if (!userId) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 

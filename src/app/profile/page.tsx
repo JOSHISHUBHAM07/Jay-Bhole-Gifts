@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { User, Package, Heart, Settings, LogOut, ShoppingBag, ChevronRight, Clock, Mail, Phone, MapPin } from "lucide-react";
-import { useSession, signOut } from "next-auth/react";
+import { useUser, useClerk } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 
 const orders = [
@@ -32,7 +32,8 @@ const statusColors: { [key: string]: string } = {
 };
 
 export default function ProfilePage() {
-    const { data: session, status } = useSession();
+    const { isLoaded, isSignedIn, user } = useUser();
+    const { signOut } = useClerk();
     const router = useRouter();
     const [activeTab, setActiveTab] = useState("orders");
     const [liveOrders, setLiveOrders] = useState<any[]>([]);
@@ -50,8 +51,8 @@ export default function ProfilePage() {
     const [settingsMessage, setSettingsMessage] = useState({ type: "", text: "" });
 
     useEffect(() => {
-        if (status === "unauthenticated") router.push("/login");
-    }, [status, router]);
+        if (isLoaded && !isSignedIn) router.push("/login");
+    }, [isLoaded, isSignedIn, router]);
 
     useEffect(() => {
         const fetchUserData = async () => {
@@ -164,10 +165,11 @@ export default function ProfilePage() {
     const displayOrders = liveOrders.length > 0 ? liveOrders : (loading ? [] : orders);
     const displayWishlist = liveWishlist.length > 0 ? liveWishlist : (loading ? [] : wishlist);
 
-    if (status === "loading") return <div className="min-h-screen bg-[#0F0F12] flex items-center justify-center"><div className="w-12 h-12 border-4 border-[#FF6F91]/30 border-t-[#FF6F91] rounded-full animate-spin" /></div>;
+    if (!isLoaded || loading) return <div className="min-h-screen bg-[#0F0F12] flex items-center justify-center"><div className="w-12 h-12 border-4 border-[#FF6F91]/30 border-t-[#FF6F91] rounded-full animate-spin" /></div>;
 
-    const firstName = session?.user?.name?.split(" ")[0] || "there";
-    const userInitial = session?.user?.name?.[0]?.toUpperCase() || "U";
+    const firstName = user?.firstName || "there";
+    const userInitial = user?.firstName?.[0]?.toUpperCase() || "U";
+    const userEmail = user?.primaryEmailAddress?.emailAddress || "";
 
     return (
         <div className="bg-[#0F0F12] min-h-screen -mt-24 pt-32 pb-20">
@@ -179,9 +181,9 @@ export default function ProfilePage() {
                     </div>
                     <div className="text-center md:text-left">
                         <h1 className="text-3xl font-extrabold text-white">Welcome back, {firstName}</h1>
-                        <p className="text-[#B5B5C0] font-medium mt-1">{session?.user?.email}</p>
+                        <p className="text-[#B5B5C0] font-medium mt-1">{userEmail}</p>
                     </div>
-                    <button onClick={() => signOut({ callbackUrl: "/" })} className="md:ml-auto flex items-center gap-2 text-sm font-bold text-[#B5B5C0] bg-white/5 border border-white/10 px-5 py-3 rounded-full hover:text-red-400 hover:border-red-400/30 hover:bg-red-400/5 transition-all">
+                    <button onClick={() => signOut()} className="md:ml-auto flex items-center gap-2 text-sm font-bold text-[#B5B5C0] bg-white/5 border border-white/10 px-5 py-3 rounded-full hover:text-red-400 hover:border-red-400/30 hover:bg-red-400/5 transition-all">
                         <LogOut className="w-4 h-4" /> Sign Out
                     </button>
                 </div>

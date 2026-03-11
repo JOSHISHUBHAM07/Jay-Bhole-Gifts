@@ -1,18 +1,20 @@
 import { NextResponse } from "next/server";
 import connectToDatabase from "@/lib/db";
 import User from "@/models/User";
-import { auth } from "@/auth";
+import { auth } from "@clerk/nextjs/server";
 
 export async function GET(request: Request) {
     try {
-        const session = await auth();
-        if (!session || !session.user || (session.user as any).role !== "admin") {
+        const { userId } = await auth();
+        if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+        await connectToDatabase();
+        const mongoUser = await User.findOne({ clerkId: userId });
+        if (!mongoUser || mongoUser.role !== "admin") {
             return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
         }
 
-        await connectToDatabase();
-
-        const users = await User.find({}).sort({ createdAt: -1 }).select("-password");
+        const users = await User.find({}).sort({ createdAt: -1 });
 
         return NextResponse.json(users);
     } catch (error) {

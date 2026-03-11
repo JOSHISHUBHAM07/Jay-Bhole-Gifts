@@ -1,16 +1,20 @@
 import { NextResponse } from "next/server";
 import connectToDatabase from "@/lib/db";
 import Coupon from "@/models/Coupon";
-import { auth } from "@/auth";
+import { auth } from "@clerk/nextjs/server";
+import User from "@/models/User";
 
 export async function GET() {
     try {
-        const session = await auth();
-        if (!session || (session.user as any).role !== "admin") {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
+        const { userId } = await auth();
+        if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
         await connectToDatabase();
+        const mongoUser = await User.findOne({ clerkId: userId });
+        if (!mongoUser || mongoUser.role !== "admin") {
+            return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
+        }
+
         const coupons = await Coupon.find().sort({ createdAt: -1 });
         return NextResponse.json(coupons);
     } catch (error) {
@@ -20,12 +24,15 @@ export async function GET() {
 
 export async function POST(request: Request) {
     try {
-        const session = await auth();
-        if (!session || (session.user as any).role !== "admin") {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
+        const { userId } = await auth();
+        if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
         await connectToDatabase();
+        const mongoUser = await User.findOne({ clerkId: userId });
+        if (!mongoUser || mongoUser.role !== "admin") {
+            return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
+        }
+
         const body = await request.json();
         const coupon = await Coupon.create(body);
         

@@ -4,31 +4,32 @@ import Order from "@/models/Order";
 import User from "@/models/User";
 import Product from "@/models/Product";
 import crypto from "crypto";
-import { auth } from "@/auth";
+import { auth } from "@clerk/nextjs/server";
 import { sendOrderConfirmationEmail } from "@/lib/email";
 import { sendOrderWhatsAppNotification } from "@/lib/whatsapp";
 
 export async function GET(request: Request) {
     try {
-        const session = await auth();
-        if (!session || !session.user) {
+        const { userId } = await auth();
+        if (!userId) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
         const { searchParams } = new URL(request.url);
-        const userId = searchParams.get('userId');
+        const queryUserId = searchParams.get('userId');
+
+        await connectToDatabase();
+        const mongoUser = await User.findOne({ clerkId: userId });
 
         // If trying to fetch all orders (no specific user ID), require admin role
-        if ((!userId || userId === "all") && (session.user as any).role !== "admin") {
+        if ((!queryUserId || queryUserId === "all") && (!mongoUser || mongoUser.role !== "admin")) {
             return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
         }
 
-        await connectToDatabase();
-
         let query: any = {};
 
-        if (userId && userId !== "all") {
-            query = { user: userId };
+        if (queryUserId && queryUserId !== "all") {
+            query = { user: queryUserId };
         }
 
         const orders = await Order.find(query).sort({ createdAt: -1 }).populate('products.product');

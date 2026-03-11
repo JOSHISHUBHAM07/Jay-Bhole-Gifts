@@ -8,7 +8,7 @@ import ScrollProgress from "@/components/effects/ScrollProgress";
 import PageTransition from "@/components/effects/PageTransition";
 import { ToastProvider } from "@/components/effects/Toast";
 import { CartProvider } from "@/context/CartContext";
-import AuthSessionProvider from "@/components/AuthSessionProvider";
+import { ClerkProvider } from "@clerk/nextjs";
 import WhatsAppWidget from "@/components/ui/WhatsAppWidget";
 
 const outfit = Outfit({
@@ -31,7 +31,7 @@ export default function RootLayout({
       <body
         className={`${outfit.variable} antialiased min-h-screen flex flex-col font-sans bg-[#0F0F12] text-white`}
       >
-        <AuthSessionProvider>
+        <ClerkProvider>
           <CartProvider>
             <ToastProvider>
               <CursorGlow />
@@ -46,7 +46,7 @@ export default function RootLayout({
               <Footer />
             </ToastProvider>
           </CartProvider>
-        </AuthSessionProvider>
+        </ClerkProvider>
       </body>
     </html>
   );
