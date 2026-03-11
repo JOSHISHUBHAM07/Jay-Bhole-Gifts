@@ -6,6 +6,8 @@ import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { Star, Truck, Shield, ChevronRight, Share2, Heart, Gift } from "lucide-react";
 import AddToCartButton from "@/components/ui/AddToCartButton";
+import { trackProductView } from "@/lib/recently-viewed";
+import RecentlyViewed from "@/components/ui/RecentlyViewed";
 
 export default function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const unwrappedParams = use(params);
@@ -65,6 +67,7 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
             }
         }
         fetchProduct();
+        trackProductView(unwrappedParams.id);
     }, [unwrappedParams.id]);
 
     if (loading) {
@@ -322,6 +325,8 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
                         </div>
                     </div>
                 )}
+
+                <RecentlyViewed currentProductId={product.id} />
 
             </div>
         </div>

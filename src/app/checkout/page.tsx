@@ -25,6 +25,7 @@ export default function CheckoutPage() {
     const [promoCode, setPromoCode] = useState("");
     const [discount, setDiscount] = useState(0);
     const [promoMessage, setPromoMessage] = useState({ text: "", type: "" });
+    const [isApplyingPromo, setIsApplyingPromo] = useState(false);
 
     useEffect(() => { setMounted(true); const s = document.createElement("script"); s.src = "https://checkout.razorpay.com/v1/checkout.js"; s.async = true; document.body.appendChild(s); }, []);
 
@@ -61,18 +62,34 @@ export default function CheckoutPage() {
     const shipping = cartTotal > 100 ? 0 : 15;
     const finalTotal = Math.max(0, cartTotal + shipping - discount);
 
-    const applyPromo = (e: React.FormEvent) => {
+    const applyPromo = async (e: React.FormEvent) => {
         e.preventDefault();
-        const code = promoCode.trim().toUpperCase();
-        if (code === "GIFT10") {
-            setDiscount(cartTotal * 0.10);
-            setPromoMessage({ text: "10% discount applied!", type: "success" });
-        } else if (code === "AURA20") {
-            setDiscount(20);
-            setPromoMessage({ text: "$20 flat discount applied!", type: "success" });
-        } else {
+        const code = promoCode.trim();
+        if (!code) return;
+
+        setIsApplyingPromo(true);
+        setPromoMessage({ text: "Validating...", type: "info" });
+
+        try {
+            const res = await fetch("/api/coupons/validate", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ code: code.toUpperCase(), cartTotal })
+            });
+            const data = await res.json();
+
+            if (res.ok) {
+                setDiscount(data.discountAmount);
+                setPromoMessage({ text: `Success: ${data.discountAmount.toFixed(2)}$ off!`, type: "success" });
+            } else {
+                setDiscount(0);
+                setPromoMessage({ text: data.error || "Invalid coupon", type: "error" });
+            }
+        } catch (error) {
             setDiscount(0);
-            setPromoMessage({ text: "Invalid or expired promo code.", type: "error" });
+            setPromoMessage({ text: "Failed to validate coupon", type: "error" });
+        } finally {
+            setIsApplyingPromo(false);
         }
     };
 
@@ -218,13 +235,14 @@ export default function CheckoutPage() {
                                             <button
                                                 type="button"
                                                 onClick={applyPromo}
-                                                className="bg-white/5 border border-white/10 text-white px-6 py-3 rounded-xl font-bold hover:bg-[#FF6F91] hover:border-[#FF6F91] transition-all text-sm whitespace-nowrap"
+                                                disabled={isApplyingPromo || !promoCode.trim()}
+                                                className="bg-white/5 border border-white/10 text-white px-6 py-3 rounded-xl font-bold hover:bg-[#FF6F91] hover:border-[#FF6F91] transition-all text-sm whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                                             >
-                                                Apply
+                                                {isApplyingPromo ? "Applying..." : "Apply"}
                                             </button>
                                         </div>
                                         {promoMessage.text && (
-                                            <div className={`text-sm mb-6 ${promoMessage.type === 'error' ? 'text-red-400' : 'text-green-400'}`}>
+                                            <div className={`text-sm mb-6 ${promoMessage.type === 'error' ? 'text-red-400' : promoMessage.type === 'info' ? 'text-blue-400' : 'text-green-400'}`}>
                                                 {promoMessage.text}
                                             </div>
                                         )}

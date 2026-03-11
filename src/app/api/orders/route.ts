@@ -6,6 +6,7 @@ import Product from "@/models/Product";
 import crypto from "crypto";
 import { auth } from "@/auth";
 import { sendOrderConfirmationEmail } from "@/lib/email";
+import { sendOrderWhatsAppNotification } from "@/lib/whatsapp";
 
 export async function GET(request: Request) {
     try {
@@ -89,11 +90,18 @@ export async function POST(request: Request) {
             ]
         });
 
-        // Fetch user email to send confirmation
+        // Fetch user info to send confirmation
         const userObj = await User.findById(user);
+        
         if (userObj && userObj.email) {
             await sendOrderConfirmationEmail(userObj.email, order._id.toString(), totalAmount);
         }
+
+        // Send WhatsApp Notifications
+        const customerName = userObj?.name || 'Customer';
+        const customerPhone = userObj?.phone; // Usually from profile, but might be empty
+        // In real world, we would extract the phone dynamically from deliveryAddress if possible or enforce in profile
+        await sendOrderWhatsAppNotification(order._id.toString(), totalAmount, customerPhone, customerName);
 
         return NextResponse.json(order, { status: 201 });
     } catch (error) {

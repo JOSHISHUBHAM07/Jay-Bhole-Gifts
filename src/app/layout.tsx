@@ -9,6 +9,7 @@ import PageTransition from "@/components/effects/PageTransition";
 import { ToastProvider } from "@/components/effects/Toast";
 import { CartProvider } from "@/context/CartContext";
 import AuthSessionProvider from "@/components/AuthSessionProvider";
+import WhatsAppWidget from "@/components/ui/WhatsAppWidget";
 
 const outfit = Outfit({
   variable: "--font-outfit",
@@ -41,6 +42,7 @@ export default function RootLayout({
                   {children}
                 </PageTransition>
               </main>
+              <WhatsAppWidget />
               <Footer />
             </ToastProvider>
           </CartProvider>

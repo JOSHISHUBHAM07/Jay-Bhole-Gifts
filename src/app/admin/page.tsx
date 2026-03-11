@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { BarChart3, Package, ShoppingBag, Users, DollarSign, Plus, Edit, Trash2, X, Loader2, CheckCircle, Clock, TrendingUp } from "lucide-react";
+import { BarChart3, Package, ShoppingBag, Users, DollarSign, Plus, Edit, Trash2, X, Loader2, CheckCircle, Clock, TrendingUp, Tag } from "lucide-react";
 
 export default function AdminDashboardPage() {
     const [activeTab, setActiveTab] = useState("overview");
@@ -10,6 +10,7 @@ export default function AdminDashboardPage() {
     const [products, setProducts] = useState<any[]>([]);
     const [orders, setOrders] = useState<any[]>([]);
     const [users, setUsers] = useState<any[]>([]);
+    const [coupons, setCoupons] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -20,11 +21,16 @@ export default function AdminDashboardPage() {
     const [selectedOrder, setSelectedOrder] = useState<any>(null);
     const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
 
+    // Coupon Add State
+    const [isAddCouponModalOpen, setIsAddCouponModalOpen] = useState(false);
+    const [couponForm, setCouponForm] = useState({ code: "", discountType: "percentage", discountValue: "", expiryDate: "", usageLimit: "100", minPurchase: "0" });
+
     useEffect(() => {
         const fetchAll = () => {
             if (activeTab === "products") fetchProducts();
             if (activeTab === "orders" || activeTab === "overview") fetchOrders();
             if (activeTab === "customers") fetchUsers();
+            if (activeTab === "coupons") fetchCoupons();
         };
 
         fetchAll();
@@ -35,6 +41,7 @@ export default function AdminDashboardPage() {
     const fetchProducts = async () => { setIsLoading(true); try { const res = await fetch("/api/products"); const data = await res.json(); if (Array.isArray(data)) setProducts(data); } catch (e) { console.error(e); } finally { setIsLoading(false); } };
     const fetchOrders = async () => { setIsLoading(true); try { const res = await fetch("/api/orders"); const data = await res.json(); if (Array.isArray(data)) setOrders(data); } catch (e) { console.error(e); } finally { setIsLoading(false); } };
     const fetchUsers = async () => { setIsLoading(true); try { const res = await fetch("/api/admin/users"); const data = await res.json(); if (Array.isArray(data)) setUsers(data); } catch (e) { console.error(e); } finally { setIsLoading(false); } };
+    const fetchCoupons = async () => { setIsLoading(true); try { const res = await fetch("/api/admin/coupons"); const data = await res.json(); if (Array.isArray(data)) setCoupons(data); } catch (e) { console.error(e); } finally { setIsLoading(false); } };
     const handleDeleteProduct = async (id: string) => { if (!confirm("Delete this product?")) return; try { const res = await fetch(`/api/products/${id}`, { method: "DELETE" }); if (res.ok) setProducts(products.filter(p => p._id !== id)); } catch (e) { console.error(e); } };
     const handleUpdateOrderStatus = async (orderId: string, newStatus: string) => {
         try {
@@ -87,6 +94,22 @@ export default function AdminDashboardPage() {
     };
     const handleEditProduct = async (e: React.FormEvent) => { e.preventDefault(); setIsSubmitting(true); try { const res = await fetch(`/api/products/${editProductId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: formData.name, price: Number(formData.price), category: formData.category, description: formData.description, stock: Number(formData.stock), images: [formData.images] }) }); if (res.ok) { setIsEditModalOpen(false); setEditProductId(null); setFormData({ name: "", price: "", category: "", description: "", stock: "", images: formData.images }); fetchProducts(); } } catch (e) { console.error(e); } finally { setIsSubmitting(false); } };
     const handleAddProduct = async (e: React.FormEvent) => { e.preventDefault(); setIsSubmitting(true); try { const res = await fetch("/api/products", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: formData.name, price: Number(formData.price), category: formData.category, description: formData.description, stock: Number(formData.stock), images: [formData.images] }) }); if (res.ok) { setIsAddModalOpen(false); setFormData({ name: "", price: "", category: "", description: "", stock: "", images: formData.images }); fetchProducts(); } } catch (e) { console.error(e); } finally { setIsSubmitting(false); } };
+
+    const handleAddCoupon = async (e: React.FormEvent) => {
+        e.preventDefault(); setIsSubmitting(true);
+        try {
+            const res = await fetch("/api/admin/coupons", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ ...couponForm, discountValue: Number(couponForm.discountValue), usageLimit: Number(couponForm.usageLimit), minPurchase: Number(couponForm.minPurchase) })
+            });
+            if (res.ok) {
+                setIsAddCouponModalOpen(false); setCouponForm({ code: "", discountType: "percentage", discountValue: "", expiryDate: "", usageLimit: "100", minPurchase: "0" }); fetchCoupons();
+            } else {
+                const data = await res.json(); alert(data.error || "Failed to add coupon");
+            }
+        } catch (e) { console.error(e); } finally { setIsSubmitting(false); }
+    };
+    const handleDeleteCoupon = async (id: string) => { if (!confirm("Delete this coupon?")) return; try { const res = await fetch(`/api/admin/coupons/${id}`, { method: "DELETE" }); if (res.ok) fetchCoupons(); } catch (e) { console.error(e); } };
 
     const totalRevenue = orders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
     const activeOrders = orders.filter(o => o.orderStatus !== "Delivered").length;
@@ -152,6 +175,7 @@ export default function AdminDashboardPage() {
                     <TabBtn id="products" label="Products" icon={Package} />
                     <TabBtn id="orders" label="Orders" icon={ShoppingBag} />
                     <TabBtn id="customers" label="Customers" icon={Users} />
+                    <TabBtn id="coupons" label="Coupons" icon={Tag} />
                 </div>
 
                 <AnimatePresence mode="wait">
@@ -292,6 +316,54 @@ export default function AdminDashboardPage() {
                                         </div>
                                     ))}</div>}
                         </motion.div>
+                    )}
+
+                    {/* COUPONS */}
+                    {activeTab === "coupons" && (
+                        <motion.div key="coupons" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="bg-[#1A1A20] rounded-2xl p-6 md:p-10 border border-white/[0.06]">
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 border-b border-white/5 pb-6">
+                                <div><h2 className="text-2xl font-extrabold text-white">Discount Coupons</h2><p className="text-[#B5B5C0] text-sm mt-1">Create and manage promotional codes.</p></div>
+                                <button onClick={() => setIsAddCouponModalOpen(true)} className="bg-gradient-to-r from-[#FF6F91] to-[#C8A2FF] text-white px-6 py-3.5 rounded-full font-bold flex items-center gap-2 shadow-[0_0_20px_rgba(255,111,145,0.3)] hover:shadow-[0_0_30px_rgba(255,111,145,0.5)] hover:scale-[1.02] transition-all"><Plus className="w-4 h-4" /> Add Coupon</button>
+                            </div>
+
+                            {isLoading ? <div className="flex flex-col items-center justify-center py-24 text-[#B5B5C0]"><div className="w-10 h-10 border-4 border-[#FF6F91]/20 border-t-[#FF6F91] rounded-full animate-spin mb-4" /><p className="font-bold">Loading...</p></div>
+                                : coupons.length === 0 ? <div className="bg-[#202028] rounded-2xl p-16 text-center flex flex-col items-center border border-white/[0.06] border-dashed"><Tag className="w-10 h-10 text-[#FF6F91] mb-4" /><h3 className="text-xl font-extrabold text-white mb-2">No Coupons</h3><p className="text-[#B5B5C0]">Create a discount code to start your promotion.</p></div>
+                                    : <div className="overflow-x-auto"><table className="w-full text-left border-collapse"><thead><tr className="text-xs font-bold uppercase tracking-widest text-[#B5B5C0]/40 border-b border-white/5"><th className="pb-4 px-4">Code</th><th className="pb-4 px-4">Discount</th><th className="pb-4 px-4">Usage</th><th className="pb-4 px-4">Expiry</th><th className="pb-4 px-4 text-right">Actions</th></tr></thead><tbody className="divide-y divide-white/5">{coupons.map(c => {
+                                        const isExpired = new Date(c.expiryDate) < new Date();
+                                        return (
+                                        <tr key={c._id} className="hover:bg-white/[0.02] transition-colors group"><td className="py-5 px-4 font-bold text-white group-hover:text-[#FF6F91] transition-colors"><span className="bg-white/5 px-3 py-1 rounded-md border border-white/10 uppercase tracking-widest">{c.code}</span></td><td className="py-5 px-4"><span className="font-bold text-[#F7C873]">{c.discountType === 'percentage' ? `${c.discountValue}%` : `$${c.discountValue}`}</span></td><td className="py-5 px-4 font-bold text-[#B5B5C0]">{c.usedCount} / {c.usageLimit}</td><td className="py-5 px-4"><span className={`px-2 py-1 rounded-full text-xs font-bold ${isExpired ? 'bg-red-500/10 text-red-400' : 'bg-green-500/10 text-green-400'}`}>{isExpired ? 'Expired' : new Date(c.expiryDate).toLocaleDateString()}</span></td><td className="py-5 px-4 text-right"><button onClick={() => handleDeleteCoupon(c._id)} className="p-2 bg-white/5 border border-white/10 text-[#B5B5C0] hover:text-red-400 hover:border-red-400/30 rounded-lg transition-all"><Trash2 className="w-4 h-4" /></button></td></tr>
+                                    )})}</tbody></table></div>}
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
+                {/* ADD COUPON MODAL */}
+                <AnimatePresence>
+                    {isAddCouponModalOpen && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+                            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsAddCouponModalOpen(false)} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+                            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="relative bg-[#1A1A20] rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden border border-white/[0.06]">
+                                <div className="border-b border-white/5 p-6 flex items-center justify-between relative overflow-hidden">
+                                    <div className="absolute top-0 inset-x-0 h-0.5 bg-gradient-to-r from-[#FF6F91] to-[#C8A2FF]" />
+                                    <h3 className="text-xl font-extrabold text-white flex items-center gap-3"><div className="bg-[#FF6F91]/10 p-2 rounded-lg text-[#FF6F91]"><Tag className="w-5 h-5" /></div> Create Coupon</h3>
+                                    <button onClick={() => setIsAddCouponModalOpen(false)} className="p-2 bg-white/5 text-[#B5B5C0] hover:text-white rounded-full transition-colors"><X className="w-5 h-5" /></button>
+                                </div>
+                                <form onSubmit={handleAddCoupon} className="p-6 bg-[#0F0F12]">
+                                    <div className="grid grid-cols-2 gap-4 mb-6">
+                                        <div className="col-span-2"><label className="block text-xs font-bold text-[#B5B5C0]/60 mb-2 uppercase tracking-widest">Coupon Code</label><input required type="text" value={couponForm.code} onChange={e => setCouponForm({ ...couponForm, code: e.target.value.toUpperCase() })} className={inputClass + " uppercase"} placeholder="e.g. SUMMER20" /></div>
+                                        <div><label className="block text-xs font-bold text-[#B5B5C0]/60 mb-2 uppercase tracking-widest">Discount Type</label><select required value={couponForm.discountType} onChange={e => setCouponForm({ ...couponForm, discountType: e.target.value })} className={inputClass + " appearance-none"}><option value="percentage">Percentage (%)</option><option value="fixed">Fixed Amount ($)</option></select></div>
+                                        <div><label className="block text-xs font-bold text-[#B5B5C0]/60 mb-2 uppercase tracking-widest">Discount Value</label><input required type="number" step="0.01" value={couponForm.discountValue} onChange={e => setCouponForm({ ...couponForm, discountValue: e.target.value })} className={inputClass} placeholder="e.g. 20" /></div>
+                                        <div><label className="block text-xs font-bold text-[#B5B5C0]/60 mb-2 uppercase tracking-widest">Expiry Date</label><input required type="date" value={couponForm.expiryDate} onChange={e => setCouponForm({ ...couponForm, expiryDate: e.target.value })} className={inputClass} /></div>
+                                        <div><label className="block text-xs font-bold text-[#B5B5C0]/60 mb-2 uppercase tracking-widest">Usage Limit</label><input required type="number" value={couponForm.usageLimit} onChange={e => setCouponForm({ ...couponForm, usageLimit: e.target.value })} className={inputClass} placeholder="e.g. 100" /></div>
+                                        <div className="col-span-2"><label className="block text-xs font-bold text-[#B5B5C0]/60 mb-2 uppercase tracking-widest">Minimum Purchase Amount ($)</label><input type="number" value={couponForm.minPurchase} onChange={e => setCouponForm({ ...couponForm, minPurchase: e.target.value })} className={inputClass} placeholder="e.g. 50" /></div>
+                                    </div>
+                                    <div className="flex justify-end gap-3 pt-6 border-t border-white/5">
+                                        <button type="button" onClick={() => setIsAddCouponModalOpen(false)} className="px-6 py-3 rounded-full font-bold text-[#B5B5C0] hover:text-white hover:bg-white/5 transition-colors">Cancel</button>
+                                        <button type="submit" disabled={isSubmitting} className="px-8 py-3 rounded-full font-bold bg-gradient-to-r from-[#FF6F91] to-[#C8A2FF] text-white shadow-[0_0_20px_rgba(255,111,145,0.3)] hover:shadow-[0_0_30px_rgba(255,111,145,0.5)] transition-all disabled:opacity-70 flex items-center">{isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : "Create Coupon"}</button>
+                                    </div>
+                                </form>
+                            </motion.div>
+                        </div>
                     )}
                 </AnimatePresence>
 

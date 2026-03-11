@@ -28,16 +28,54 @@ function ProductListingContent() {
     const [searchQuery, setSearchQuery] = useState(initialSearch);
     const [activeSort, setActiveSort] = useState("Featured");
     const [isFilterOpen, setIsFilterOpen] = useState(false);
+    const [activePriceRanges, setActivePriceRanges] = useState<string[]>([]);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalItems, setTotalItems] = useState(0);
+    const [isLoading, setIsLoading] = useState(true);
     const [liveProducts, setLiveProducts] = useState<any[]>([]);
 
     // Fetch live products
     useEffect(() => {
         async function fetchProducts() {
+            setIsLoading(true);
             try {
-                const res = await fetch('/api/products');
+                const params = new URLSearchParams();
+                if (activeCategory !== "All") {
+                    params.append("category", activeCategory.toLowerCase());
+                }
+                if (searchQuery) {
+                    params.append("q", searchQuery);
+                }
+                
+                let sortValue = "-createdAt";
+                if (activeSort === "Price: Low to High") sortValue = "price";
+                else if (activeSort === "Price: High to Low") sortValue = "-price";
+                else if (activeSort === "Customer Rating") sortValue = "-rating";
+                else if (activeSort === "Newest Arrivals") sortValue = "-createdAt";
+                
+                params.append("sort", sortValue);
+                params.append("page", currentPage.toString());
+                params.append("limit", "12");
+
+                if (activePriceRanges.length > 0) {
+                    let min = Infinity;
+                    let max = -1;
+                    activePriceRanges.forEach(r => {
+                        if (r === "Under $50") { min = Math.min(min, 0); max = Math.max(max, 50); }
+                        else if (r === "$50 - $100") { min = Math.min(min, 50); max = Math.max(max, 100); }
+                        else if (r === "$100 - $200") { min = Math.min(min, 100); max = Math.max(max, 200); }
+                        else if (r === "Over $200") { min = Math.min(min, 200); max = Infinity; }
+                    });
+                    if (min !== Infinity) params.append("minPrice", min.toString());
+                    if (max !== -1 && max !== Infinity) params.append("maxPrice", max.toString());
+                }
+
+                const res = await fetch(`/api/products?${params.toString()}`);
                 const data = await res.json();
-                if (Array.isArray(data)) {
-                    const formatted = data.map((p: any) => ({
+                
+                if (data.products) {
+                    const formatted = data.products.map((p: any) => ({
                         id: p._id,
                         name: p.name,
                         price: p.price,
@@ -47,28 +85,45 @@ function ProductListingContent() {
                         isNew: p.isPopular
                     }));
                     setLiveProducts(formatted);
+                    setTotalPages(data.pages || 1);
+                    setTotalItems(data.total || 0);
+                } else if (Array.isArray(data)) {
+                    // Fallback if old API format is still cached somehow
+                    setLiveProducts(data.map((p: any) => ({
+                        id: p._id, name: p.name, price: p.price, rating: p.rating || 4.8, 
+                        image: p.images && p.images.length > 0 ? p.images[0] : "https://images.unsplash.com/photo-1549007994-cb92caebd54b?w=500&q=80", 
+                        category: p.category, isNew: p.isPopular
+                    })));
+                    setTotalItems(data.length);
+                    setTotalPages(1);
                 }
             } catch (error) {
                 console.error("Failed to fetch products", error);
+            } finally {
+                setIsLoading(false);
             }
         }
         fetchProducts();
-    }, []);
+    }, [activeCategory, searchQuery, activeSort, currentPage, activePriceRanges]);
 
-    const sourceProducts = liveProducts.length > 0 ? liveProducts : allProducts;
+    const handleCategoryChange = (cat: string) => {
+        setActiveCategory(cat);
+        setCurrentPage(1);
+    };
 
-    const filteredProducts = sourceProducts.filter((p) => {
-        const matchesCategory = activeCategory === "All" ||
-            (activeCategory === "Trending" && p.rating > 4.7) ||
-            (activeCategory.toLowerCase() === "personalized" && (p.name.toLowerCase().includes("personalized") || p.name.toLowerCase().includes("custom"))) ||
-            p.category.toLowerCase() === activeCategory.toLowerCase();
+    const handleSortChange = (sort: string) => {
+        setActiveSort(sort);
+        setCurrentPage(1);
+    };
 
-        const matchesSearchText = !searchQuery ||
-            p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            p.category.toLowerCase().includes(searchQuery.toLowerCase());
+    const togglePriceRange = (range: string) => {
+        setActivePriceRanges(prev => 
+            prev.includes(range) ? prev.filter(r => r !== range) : [...prev, range]
+        );
+        setCurrentPage(1);
+    };
 
-        return matchesCategory && matchesSearchText;
-    });
+    const filteredProducts = liveProducts;
 
     return (
         <div className="bg-[#0F0F12] min-h-screen -mt-24 pt-32 pb-20">
@@ -93,7 +148,7 @@ function ProductListingContent() {
                             </button>
                             <div className="absolute right-0 top-full mt-2 w-56 bg-[#202028] border border-white/10 shadow-2xl rounded-xl overflow-hidden opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all z-20">
                                 {sortOptions.map((opt) => (
-                                    <button key={opt} onClick={() => setActiveSort(opt)} className={`block w-full text-left px-4 py-3 text-sm font-medium border-b border-white/5 last:border-0 ${activeSort === opt ? 'text-[#FF6F91] bg-white/5' : 'text-[#B5B5C0] hover:bg-white/5 hover:text-white'}`}>{opt}</button>
+                                    <button key={opt} onClick={() => handleSortChange(opt)} className={`block w-full text-left px-4 py-3 text-sm font-medium border-b border-white/5 last:border-0 ${activeSort === opt ? 'text-[#FF6F91] bg-white/5' : 'text-[#B5B5C0] hover:bg-white/5 hover:text-white'}`}>{opt}</button>
                                 ))}
                             </div>
                         </div>
@@ -110,7 +165,7 @@ function ProductListingContent() {
                                 <ul className="flex flex-col gap-1">
                                     {categories.map((cat) => (
                                         <li key={cat}>
-                                            <button onClick={() => setActiveCategory(cat)} className={`text-sm w-full text-left px-4 py-2.5 rounded-xl font-medium transition-all ${activeCategory === cat ? 'bg-white/5 text-[#FF6F91] font-bold' : 'text-[#B5B5C0] hover:bg-white/5 hover:text-white'}`}>
+                                            <button onClick={() => handleCategoryChange(cat)} className={`text-sm w-full text-left px-4 py-2.5 rounded-xl font-medium transition-all ${activeCategory === cat ? 'bg-white/5 text-[#FF6F91] font-bold' : 'text-[#B5B5C0] hover:bg-white/5 hover:text-white'}`}>
                                                 {cat}
                                             </button>
                                         </li>
@@ -121,7 +176,7 @@ function ProductListingContent() {
                                 <h3 className="font-bold mb-4 text-xs uppercase tracking-widest text-[#B5B5C0]/60">Price Range</h3>
                                 {["Under $50", "$50 - $100", "$100 - $200", "Over $200"].map((range) => (
                                     <label key={range} className="flex items-center gap-3 cursor-pointer px-4 py-2">
-                                        <input type="checkbox" className="peer appearance-none w-4 h-4 rounded border border-white/20 bg-transparent checked:bg-[#FF6F91] checked:border-[#FF6F91] transition-all" />
+                                        <input type="checkbox" checked={activePriceRanges.includes(range)} onChange={() => togglePriceRange(range)} className="peer appearance-none w-4 h-4 rounded border border-white/20 bg-transparent checked:bg-[#FF6F91] checked:border-[#FF6F91] transition-all" />
                                         <span className="text-sm text-[#B5B5C0]">{range}</span>
                                     </label>
                                 ))}
@@ -134,7 +189,7 @@ function ProductListingContent() {
                         {/* Desktop Toolbar */}
                         <div className="hidden lg:flex items-center justify-between mb-8 bg-[#1A1A20] px-6 py-4 rounded-2xl border border-white/[0.06]">
                             <div className="flex gap-3 items-center">
-                                <span className="text-[#B5B5C0]/60 text-sm font-medium">{filteredProducts.length} items</span>
+                                <span className="text-[#B5B5C0]/60 text-sm font-medium">{totalItems} items</span>
                                 {['Trending', 'New Arrivals'].map((tag) => (
                                     <button key={tag} className="px-4 py-2 text-xs font-bold bg-white/5 text-[#B5B5C0] hover:text-white hover:bg-[#FF6F91] rounded-full transition-all flex items-center gap-1">
                                         <Sparkles className="w-3 h-3" /> {tag}
@@ -147,7 +202,7 @@ function ProductListingContent() {
                                 </button>
                                 <div className="absolute right-0 top-full mt-2 w-56 bg-[#202028] border border-white/10 shadow-2xl rounded-xl overflow-hidden opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all z-20">
                                     {sortOptions.map((opt) => (
-                                        <button key={opt} onClick={() => setActiveSort(opt)} className={`block w-full text-left px-4 py-3 text-sm font-medium border-b border-white/5 last:border-0 ${activeSort === opt ? 'text-[#FF6F91] bg-white/5' : 'text-[#B5B5C0] hover:bg-white/5 hover:text-white'}`}>{opt}</button>
+                                        <button key={opt} onClick={() => handleSortChange(opt)} className={`block w-full text-left px-4 py-3 text-sm font-medium border-b border-white/5 last:border-0 ${activeSort === opt ? 'text-[#FF6F91] bg-white/5' : 'text-[#B5B5C0] hover:bg-white/5 hover:text-white'}`}>{opt}</button>
                                     ))}
                                 </div>
                             </div>
@@ -156,21 +211,49 @@ function ProductListingContent() {
                         {/* Product Grid */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
                             <AnimatePresence>
-                                {filteredProducts.map((product) => (
+                                {!isLoading && filteredProducts.map((product) => (
                                     <motion.div key={product.id} layout initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ duration: 0.3 }}>
                                         <ProductCard {...product} />
                                     </motion.div>
                                 ))}
                             </AnimatePresence>
-                            {filteredProducts.length === 0 && (
+                            {isLoading && (
+                                <div className="col-span-full py-24 flex justify-center">
+                                    <div className="w-10 h-10 border-4 border-[#FF6F91]/20 border-t-[#FF6F91] rounded-full animate-spin" />
+                                </div>
+                            )}
+                            {!isLoading && filteredProducts.length === 0 && (
                                 <div className="col-span-full py-24 text-center flex flex-col items-center justify-center bg-[#1A1A20] rounded-2xl border border-white/[0.06] border-dashed">
                                     <Filter className="w-10 h-10 text-[#FF6F91] mb-4" />
                                     <h3 className="text-xl font-extrabold text-white mb-2">No products found</h3>
                                     <p className="text-[#B5B5C0] max-w-sm">Try adjusting your filters.</p>
-                                    <button onClick={() => { setActiveCategory("All"); setSearchQuery(""); }} className="mt-6 bg-white/5 border border-white/10 text-white px-6 py-3 rounded-full font-bold hover:bg-[#FF6F91] hover:border-[#FF6F91] transition-all">Clear all</button>
+                                    <button onClick={() => { setActiveCategory("All"); setSearchQuery(""); setActivePriceRanges([]); }} className="mt-6 bg-white/5 border border-white/10 text-white px-6 py-3 rounded-full font-bold hover:bg-[#FF6F91] hover:border-[#FF6F91] transition-all">Clear all</button>
                                 </div>
                             )}
                         </div>
+
+                        {/* Pagination UI */}
+                        {!isLoading && totalPages > 1 && (
+                            <div className="flex justify-center items-center gap-2 mt-12">
+                                <button 
+                                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                    disabled={currentPage === 1}
+                                    className="px-4 py-2 rounded-xl border border-white/10 bg-[#1A1A20] text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-white/5 transition-all font-medium"
+                                >
+                                    Previous
+                                </button>
+                                <span className="text-[#B5B5C0] text-sm px-4">
+                                    Page {currentPage} of {totalPages}
+                                </span>
+                                <button 
+                                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                    disabled={currentPage === totalPages}
+                                    className="px-4 py-2 rounded-xl border border-white/10 bg-[#1A1A20] text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-[#FF6F91] hover:border-[#FF6F91] transition-all font-medium"
+                                >
+                                    Next
+                                </button>
+                            </div>
+                        )}
                     </main>
                 </div>
             </div>
