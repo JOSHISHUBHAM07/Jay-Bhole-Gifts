@@ -60,11 +60,8 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
     try {
         const session = await auth();
-        // Here we could enforce stricter checks like `session?.user?.email === "admin@example.com"` 
-        // or a custom role check from the session. For now, requiring any valid login is a start,
-        // but let's enforce an admin-like check or at least require authentication.
-        if (!session || !session.user) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        if (!session || !session.user || (session.user as any).role !== "admin") {
+            return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
         }
 
         await connectToDatabase();

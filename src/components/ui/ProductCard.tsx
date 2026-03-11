@@ -61,8 +61,8 @@ export default function ProductCard({ id, name, price, rating, image, category, 
                 )}
             </div>
 
-            {/* Wishlist */}
-            <button className="absolute top-5 right-5 z-10 w-9 h-9 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white/50 hover:text-[#FF6F91] hover:border-[#FF6F91]/30 hover:scale-110 transition-all opacity-0 group-hover:opacity-100">
+            {/* Wishlist — always visible on touch, hover-only on desktop */}
+            <button className="absolute top-5 right-5 z-10 w-9 h-9 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white/50 hover:text-[#FF6F91] hover:border-[#FF6F91]/30 hover:scale-110 transition-all md:opacity-0 md:group-hover:opacity-100">
                 <Heart className="w-4 h-4" />
             </button>
 
@@ -94,7 +94,7 @@ export default function ProductCard({ id, name, price, rating, image, category, 
                         whileHover={{ scale: 1.08 }}
                         whileTap={{ scale: 0.92 }}
                         onClick={handleQuickAdd}
-                        className="bg-white/5 border border-white/10 text-white px-4 py-2.5 rounded-xl text-xs font-bold hover:bg-[#FF6F91] hover:border-[#FF6F91] hover:shadow-[0_0_20px_rgba(255,111,145,0.3)] transition-all flex items-center gap-1.5"
+                        className="bg-white/5 border border-white/10 text-white px-3 md:px-4 py-2.5 rounded-xl text-xs font-bold hover:bg-[#FF6F91] hover:border-[#FF6F91] hover:shadow-[0_0_20px_rgba(255,111,145,0.3)] transition-all flex items-center gap-1.5 min-h-[40px]"
                     >
                         <ShoppingBag className="w-3.5 h-3.5" /> Add
                     </motion.button>

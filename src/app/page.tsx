@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { motion, useInView, useScroll, useTransform, useMotionValue, useSpring } from "framer-motion";
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useMemo } from "react";
 import { ArrowRight, Gift, Star, Sparkles, Heart, ShoppingBag, Quote, Cake, PartyPopper, Briefcase, TreePine, Gem, Package, Users, TrendingUp } from "lucide-react";
 import ProductCard from "@/components/ui/ProductCard";
 
@@ -108,16 +108,25 @@ function FloatingIcon({ children, delay = 0, duration = 6, className = "" }: { c
 }
 
 function SparkleField() {
+  // Pre-generate sparkle positions once (never re-calculate on re-render)
+  const sparkles = useMemo(() => Array.from({ length: 12 }, (_, i) => ({
+    id: i,
+    left: `${(i * 8.3) % 100}%`,
+    top: `${(i * 13.7 + 5) % 100}%`,
+    delay: (i * 0.4) % 4,
+    duration: 2.5 + (i % 3),
+  })), []);
+
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      {Array.from({ length: 30 }).map((_, i) => (
+      {sparkles.map((s) => (
         <motion.div
-          key={i}
+          key={s.id}
           className="absolute w-1 h-1 bg-white rounded-full"
           initial={{ opacity: 0, scale: 0 }}
           animate={{ opacity: [0, 0.6, 0], scale: [0, 1, 0] }}
-          transition={{ repeat: Infinity, duration: Math.random() * 3 + 2, delay: Math.random() * 4, ease: "easeInOut" }}
-          style={{ left: `${Math.random() * 100}%`, top: `${Math.random() * 100}%` }}
+          transition={{ repeat: Infinity, duration: s.duration, delay: s.delay, ease: "easeInOut" }}
+          style={{ left: s.left, top: s.top }}
         />
       ))}
     </div>
@@ -214,7 +223,7 @@ export default function HomePage() {
             <Sparkles className="w-4 h-4 text-[#F7C873]" /> Premium Gifting Experience in Dahod
           </motion.div>
 
-          <motion.h1 initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.4 }} className="text-5xl md:text-7xl lg:text-8xl font-extrabold text-white mb-8 leading-[1.1] tracking-tight">
+          <motion.h1 initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.4 }} className="text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-extrabold text-white mb-6 md:mb-8 leading-[1.1] tracking-tight">
             Find the <span className="text-gradient">Perfect</span>
             <br />Gift for Everyone
           </motion.h1>
@@ -224,11 +233,11 @@ export default function HomePage() {
           </motion.p>
 
           <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.8 }} className="flex flex-col sm:flex-row gap-4 justify-center">
-            <MagneticButton href="/products" className="group items-center gap-2 bg-gradient-to-r from-[#FF6F91] to-[#C8A2FF] text-white px-10 py-5 rounded-full font-bold text-lg shadow-[0_0_30px_rgba(255,111,145,0.4)] hover:shadow-[0_0_50px_rgba(255,111,145,0.6)] transition-shadow">
+            <MagneticButton href="/products" className="group items-center gap-2 bg-gradient-to-r from-[#FF6F91] to-[#C8A2FF] text-white px-8 sm:px-10 py-4 sm:py-5 rounded-full font-bold text-base sm:text-lg shadow-[0_0_30px_rgba(255,111,145,0.4)] hover:shadow-[0_0_50px_rgba(255,111,145,0.6)] transition-shadow w-full sm:w-auto justify-center">
               <Gift className="w-5 h-5" /> Explore Gifts
               <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </MagneticButton>
-            <MagneticButton href="/products?category=personalized" className="items-center gap-2 bg-white/5 border border-white/10 text-white px-10 py-5 rounded-full font-bold text-lg hover:bg-white/10 hover:border-white/20 transition-all backdrop-blur-md">
+            <MagneticButton href="/products?category=personalized" className="items-center gap-2 bg-white/5 border border-white/10 text-white px-8 sm:px-10 py-4 sm:py-5 rounded-full font-bold text-base sm:text-lg hover:bg-white/10 hover:border-white/20 transition-all backdrop-blur-md w-full sm:w-auto justify-center">
               Personalized Gifts
             </MagneticButton>
           </motion.div>

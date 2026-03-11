@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, Package, Truck, CheckCircle, Clock, MapPin, ArrowRight } from "lucide-react";
 
@@ -18,12 +18,17 @@ export default function TrackOrderPage() {
         if (!orderId.trim()) return;
 
         setTracking(true);
+        fetchOrderDetails(orderId.trim());
+    };
+
+    const fetchOrderDetails = async (idToTrack: string) => {
         try {
-            const res = await fetch(`/api/orders/${orderId.trim()}`);
+            const res = await fetch(`/api/orders/${idToTrack}`);
             const data = await res.json();
 
             if (!res.ok) {
                 setErrorMsg(data.error || "Order not found");
+                setResult(null);
             } else {
                 setResult(data);
             }
@@ -33,6 +38,15 @@ export default function TrackOrderPage() {
             setTracking(false);
         }
     };
+
+    // Auto-refresh the current tracking result every 10 seconds
+    useEffect(() => {
+        if (!result || !orderId.trim()) return;
+        const interval = setInterval(() => {
+            fetchOrderDetails(orderId.trim());
+        }, 10000);
+        return () => clearInterval(interval);
+    }, [result, orderId]);
 
     return (
         <div className="bg-[#0F0F12] -mt-24 pt-32 pb-20 min-h-screen">

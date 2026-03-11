@@ -36,8 +36,8 @@ export async function PATCH(
 ) {
     try {
         const session = await auth();
-        if (!session || !session.user) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        if (!session || !session.user || (session.user as any).role !== "admin") {
+            return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
         }
 
         await connectToDatabase();
@@ -77,5 +77,32 @@ export async function PATCH(
     } catch (error) {
         console.error("Update order error:", error);
         return NextResponse.json({ error: "Failed to update order status" }, { status: 500 });
+    }
+}
+
+// DELETE an order
+export async function DELETE(
+    request: Request,
+    { params }: { params: Promise<{ id: string }> }
+) {
+    try {
+        const session = await auth();
+        if (!session || !session.user || (session.user as any).role !== "admin") {
+            return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
+        }
+
+        await connectToDatabase();
+        const { id } = await params;
+
+        const deletedOrder = await Order.findByIdAndDelete(id);
+
+        if (!deletedOrder) {
+            return NextResponse.json({ error: "Order not found" }, { status: 404 });
+        }
+
+        return NextResponse.json({ message: "Order deleted successfully" }, { status: 200 });
+    } catch (error) {
+        console.error("Delete order error:", error);
+        return NextResponse.json({ error: "Failed to delete order" }, { status: 500 });
     }
 }

@@ -94,12 +94,12 @@ export default function CheckoutPage() {
                 amount: orderData.amount, currency: "INR", name: "JayBhole Gift Shop", description: "Premium Gifting Purchase", order_id: orderData.id,
                 handler: async function (response: any) {
                     setIsProcessing(true);
-                    const captureRes = await fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ razorpay_payment_id: response.razorpay_payment_id, razorpay_order_id: response.razorpay_order_id, razorpay_signature: response.razorpay_signature, user: "661234abcd567890ef123456", products: orderProducts, totalAmount: finalTotal, deliveryAddress: `${formData.street}, ${formData.city}, ${formData.zip}` }) });
+                    const captureRes = await fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ razorpay_payment_id: response.razorpay_payment_id, razorpay_order_id: response.razorpay_order_id, razorpay_signature: response.razorpay_signature, products: orderProducts, totalAmount: finalTotal, deliveryAddress: `${formData.street}, ${formData.city}, ${formData.zip}` }) });
                     const dbOrder = await captureRes.json(); setIsProcessing(false);
                     if (captureRes.ok) {
-                        setOrderId(dbOrder._id || `JB-${Math.floor(Math.random() * 1000000)}`);
-                        setOrderComplete(true);
                         clearCart();
+                        const newOrderId = dbOrder._id || `JB-${Math.floor(Math.random() * 1000000)}`;
+                        router.push(`/order-success?orderId=${newOrderId}`);
                     } else { alert("Payment verification failed"); }
                 },
                 prefill: { name: formData.name, email: formData.email },
@@ -111,17 +111,6 @@ export default function CheckoutPage() {
         } catch (error) { console.error(error); alert("Error initializing payment."); setIsProcessing(false); }
     };
 
-    if (orderComplete) return (
-        <div className="min-h-[70vh] flex flex-col items-center justify-center bg-[#0F0F12] -mt-24 pt-24">
-            <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", bounce: 0.5 }} className="w-24 h-24 bg-[#FF6F91]/10 text-[#FF6F91] rounded-full flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(255,111,145,0.2)]">
-                <CheckCircle2 className="w-12 h-12" />
-            </motion.div>
-            <h1 className="text-4xl font-extrabold text-white mb-3">Order Confirmed!</h1>
-            <p className="text-[#B5B5C0] mb-4 text-center max-w-lg">Thank you for your purchase. We're getting your premium gifts ready!</p>
-            <div className="bg-[#1A1A20] px-6 py-3 rounded-full border border-white/10 mb-10"><p className="text-white font-bold">Order ID: <span className="text-[#FF6F91]">#{orderId}</span></p></div>
-            <Link href="/products" className="bg-gradient-to-r from-[#FF6F91] to-[#C8A2FF] text-white px-8 py-4 rounded-full font-bold shadow-[0_0_20px_rgba(255,111,145,0.3)] hover:scale-105 transition-all flex items-center gap-2"><ShoppingBag className="w-5 h-5" /> Continue Shopping</Link>
-        </div>
-    );
 
     const inputClass = "w-full px-5 py-4 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-[#B5B5C0]/40 focus:outline-none focus:border-[#FF6F91]/50 focus:shadow-[0_0_10px_rgba(255,111,145,0.1)] transition-all font-medium";
 

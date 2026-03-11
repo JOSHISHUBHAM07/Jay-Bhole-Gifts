@@ -88,6 +88,15 @@
     transform: translateY(-6px);
   }
 
+  /* Touch targets: minimum 44x44px for WCAG compliance */
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
   .hide-scrollbar::-webkit-scrollbar {
     display: none;
   }
@@ -95,6 +104,29 @@
   .hide-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
+  }
+
+  /* Performance: hint browser to use GPU for animated elements */
+  .will-animate {
+    will-change: transform, opacity;
+  }
+
+  /* Mobile: no hover effects that cause layout shifts on touch devices */
+  @media (hover: none) {
+    .card-glow:hover {
+      transform: none;
+      box-shadow: none;
+    }
+  }
+
+  /* Safe areas for phones with notches/home bars */
+  .safe-padding-x {
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
+  }
+
+  .safe-padding-bottom {
+    padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
   }
 }
 

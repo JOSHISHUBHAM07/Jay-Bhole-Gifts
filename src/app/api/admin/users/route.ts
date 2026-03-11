@@ -6,9 +6,8 @@ import { auth } from "@/auth";
 export async function GET(request: Request) {
     try {
         const session = await auth();
-        // Additional auth check for admin could go here
-        if (!session || !session.user) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        if (!session || !session.user || (session.user as any).role !== "admin") {
+            return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
         }
 
         await connectToDatabase();

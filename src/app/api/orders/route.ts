@@ -14,9 +14,15 @@ export async function GET(request: Request) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        await connectToDatabase();
         const { searchParams } = new URL(request.url);
         const userId = searchParams.get('userId');
+
+        // If trying to fetch all orders (no specific user ID), require admin role
+        if ((!userId || userId === "all") && (session.user as any).role !== "admin") {
+            return NextResponse.json({ error: "Forbidden: Admin access required" }, { status: 403 });
+        }
+
+        await connectToDatabase();
 
         let query: any = {};
 

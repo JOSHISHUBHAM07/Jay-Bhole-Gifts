@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { User, Package, Heart, Settings, LogOut, ShoppingBag, ChevronRight, Clock, Mail, Phone, MapPin } from "lucide-react";
+import { useSession, signOut } from "next-auth/react";
+import { useRouter } from "next/navigation";
 
 const orders = [
     { id: "JB-2834", date: "Mar 04, 2026", total: "$130.00", status: "Delivered", items: 3 },
@@ -30,6 +32,8 @@ const statusColors: { [key: string]: string } = {
 };
 
 export default function ProfilePage() {
+    const { data: session, status } = useSession();
+    const router = useRouter();
     const [activeTab, setActiveTab] = useState("orders");
     const [liveOrders, setLiveOrders] = useState<any[]>([]);
     const [liveWishlist, setLiveWishlist] = useState<any[]>([]);
@@ -40,11 +44,20 @@ export default function ProfilePage() {
     const [addressForm, setAddressForm] = useState({ name: "", street: "", city: "", zip: "", isDefault: false });
     const [isSubmittingAddress, setIsSubmittingAddress] = useState(false);
 
+    // Profile Settings State
+    const [settingsForm, setSettingsForm] = useState({ name: "", email: "", phone: "" });
+    const [isSavingSettings, setIsSavingSettings] = useState(false);
+    const [settingsMessage, setSettingsMessage] = useState({ type: "", text: "" });
+
     useEffect(() => {
-        async function fetchUserData() {
+        if (status === "unauthenticated") router.push("/login");
+    }, [status, router]);
+
+    useEffect(() => {
+        const fetchUserData = async () => {
             try {
                 // Fetching orders
-                const resOrders = await fetch('/api/orders?userId=661234abcd567890ef123456');
+                const resOrders = await fetch('/api/orders');
                 if (resOrders.ok) {
                     const data = await resOrders.json();
                     if (Array.isArray(data)) {
@@ -74,13 +87,28 @@ export default function ProfilePage() {
                     if (Array.isArray(data)) setLiveAddresses(data);
                 }
 
+                // Fetch Profile Metrics
+                const resProfile = await fetch('/api/user/profile');
+                if (resProfile.ok) {
+                    const data = await resProfile.json();
+                    setSettingsForm(prev => ({
+                        ...prev,
+                        name: prev.name || data.name || "",
+                        email: data.email || "",
+                        phone: prev.phone || data.phone || ""
+                    }));
+                }
+
             } catch (error) {
                 console.error("Failed to fetch user data:", error);
             } finally {
                 setLoading(false);
             }
-        }
+        };
+
         fetchUserData();
+        const interval = setInterval(fetchUserData, 10000); // Poll every 10 seconds
+        return () => clearInterval(interval);
     }, []);
 
     const handleAddAddress = async (e: React.FormEvent) => {
@@ -107,8 +135,39 @@ export default function ProfilePage() {
         }
     };
 
+    const handleSaveSettings = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsSavingSettings(true);
+        setSettingsMessage({ type: "", text: "" });
+
+        try {
+            const res = await fetch("/api/user/profile", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name: settingsForm.name, phone: settingsForm.phone })
+            });
+
+            const data = await res.json();
+            if (res.ok) {
+                setSettingsMessage({ type: "success", text: "Profile updated successfully!" });
+                setTimeout(() => setSettingsMessage({ type: "", text: "" }), 3000);
+            } else {
+                setSettingsMessage({ type: "error", text: data.error || "Failed to update profile" });
+            }
+        } catch (error) {
+            setSettingsMessage({ type: "error", text: "Something went wrong" });
+        } finally {
+            setIsSavingSettings(false);
+        }
+    };
+
     const displayOrders = liveOrders.length > 0 ? liveOrders : (loading ? [] : orders);
     const displayWishlist = liveWishlist.length > 0 ? liveWishlist : (loading ? [] : wishlist);
+
+    if (status === "loading") return <div className="min-h-screen bg-[#0F0F12] flex items-center justify-center"><div className="w-12 h-12 border-4 border-[#FF6F91]/30 border-t-[#FF6F91] rounded-full animate-spin" /></div>;
+
+    const firstName = session?.user?.name?.split(" ")[0] || "there";
+    const userInitial = session?.user?.name?.[0]?.toUpperCase() || "U";
 
     return (
         <div className="bg-[#0F0F12] min-h-screen -mt-24 pt-32 pb-20">
@@ -116,13 +175,13 @@ export default function ProfilePage() {
                 {/* Profile Header */}
                 <div className="flex flex-col md:flex-row items-center gap-6 mb-14">
                     <div className="w-20 h-20 rounded-2xl bg-gradient-to-tr from-[#FF6F91] to-[#C8A2FF] flex items-center justify-center text-white text-3xl font-extrabold shadow-[0_0_30px_rgba(255,111,145,0.3)]">
-                        J
+                        {userInitial}
                     </div>
                     <div className="text-center md:text-left">
-                        <h1 className="text-3xl font-extrabold text-white">Welcome back, John</h1>
-                        <p className="text-[#B5B5C0] font-medium mt-1">johndoe@gmail.com · Member since 2024</p>
+                        <h1 className="text-3xl font-extrabold text-white">Welcome back, {firstName}</h1>
+                        <p className="text-[#B5B5C0] font-medium mt-1">{session?.user?.email}</p>
                     </div>
-                    <button className="md:ml-auto flex items-center gap-2 text-sm font-bold text-[#B5B5C0] bg-white/5 border border-white/10 px-5 py-3 rounded-full hover:text-red-400 hover:border-red-400/30 hover:bg-red-400/5 transition-all">
+                    <button onClick={() => signOut({ callbackUrl: "/" })} className="md:ml-auto flex items-center gap-2 text-sm font-bold text-[#B5B5C0] bg-white/5 border border-white/10 px-5 py-3 rounded-full hover:text-red-400 hover:border-red-400/30 hover:bg-red-400/5 transition-all">
                         <LogOut className="w-4 h-4" /> Sign Out
                     </button>
                 </div>
@@ -289,25 +348,31 @@ export default function ProfilePage() {
                                 <div className="p-6 border-b border-white/5">
                                     <h2 className="text-xl font-extrabold text-white flex items-center gap-2"><Settings className="w-5 h-5 text-[#FF6F91]" /> Account Settings</h2>
                                 </div>
-                                <form className="p-6 grid md:grid-cols-2 gap-6" onSubmit={(e) => e.preventDefault()}>
+                                <form className="p-6 grid md:grid-cols-2 gap-6" onSubmit={handleSaveSettings}>
                                     <div>
                                         <label className="block text-xs font-bold text-[#B5B5C0]/60 mb-2 uppercase tracking-widest">Full Name</label>
-                                        <input defaultValue="John Doe" className="w-full px-5 py-4 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#FF6F91]/50 transition-all font-bold" />
+                                        <input required value={settingsForm.name} onChange={(e) => setSettingsForm({ ...settingsForm, name: e.target.value })} className="w-full px-5 py-4 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#FF6F91]/50 transition-all font-bold" />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-bold text-[#B5B5C0]/60 mb-2 uppercase tracking-widest">Email</label>
-                                        <input defaultValue="johndoe@gmail.com" className="w-full px-5 py-4 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#FF6F91]/50 transition-all font-bold" />
+                                        <label className="block text-xs font-bold text-[#B5B5C0]/60 mb-2 uppercase tracking-widest">Email (Read-only)</label>
+                                        <input disabled value={settingsForm.email} className="w-full px-5 py-4 bg-white/5 border border-white/10 rounded-xl text-[#B5B5C0]/50 opacity-70 cursor-not-allowed font-bold" />
                                     </div>
-                                    <div>
+                                    <div className="md:col-span-2">
                                         <label className="block text-xs font-bold text-[#B5B5C0]/60 mb-2 uppercase tracking-widest">Phone</label>
-                                        <input defaultValue="+91 12345 67890" className="w-full px-5 py-4 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#FF6F91]/50 transition-all font-bold" />
+                                        <input value={settingsForm.phone} onChange={(e) => setSettingsForm({ ...settingsForm, phone: e.target.value })} placeholder="+91 12345 67890" className="w-full px-5 py-4 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#FF6F91]/50 transition-all font-bold" />
                                     </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-[#B5B5C0]/60 mb-2 uppercase tracking-widest">City</label>
-                                        <input defaultValue="Dahod" className="w-full px-5 py-4 bg-white/5 border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#FF6F91]/50 transition-all font-bold" />
-                                    </div>
-                                    <div className="md:col-span-2 pt-6 border-t border-white/5 flex justify-end">
-                                        <button className="bg-gradient-to-r from-[#FF6F91] to-[#C8A2FF] text-white px-8 py-4 rounded-full font-bold shadow-[0_0_20px_rgba(255,111,145,0.3)] hover:shadow-[0_0_30px_rgba(255,111,145,0.5)] hover:scale-[1.02] transition-all">Save Changes</button>
+
+                                    <div className="md:col-span-2 pt-6 border-t border-white/5 flex items-center justify-between">
+                                        <div>
+                                            {settingsMessage.text && (
+                                                <p className={`text-sm font-bold ${settingsMessage.type === 'success' ? 'text-green-400' : 'text-red-400'}`}>
+                                                    {settingsMessage.text}
+                                                </p>
+                                            )}
+                                        </div>
+                                        <button disabled={isSavingSettings} className="bg-gradient-to-r from-[#FF6F91] to-[#C8A2FF] disabled:opacity-50 text-white px-8 py-4 rounded-full font-bold shadow-[0_0_20px_rgba(255,111,145,0.3)] hover:shadow-[0_0_30px_rgba(255,111,145,0.5)] hover:scale-[1.02] transition-all">
+                                            {isSavingSettings ? "Saving..." : "Save Changes"}
+                                        </button>
                                     </div>
                                 </form>
                             </motion.div>

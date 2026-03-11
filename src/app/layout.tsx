@@ -7,6 +7,8 @@ import CursorGlow from "@/components/effects/CursorGlow";
 import ScrollProgress from "@/components/effects/ScrollProgress";
 import PageTransition from "@/components/effects/PageTransition";
 import { ToastProvider } from "@/components/effects/Toast";
+import { CartProvider } from "@/context/CartContext";
+import AuthSessionProvider from "@/components/AuthSessionProvider";
 
 const outfit = Outfit({
   variable: "--font-outfit",
@@ -18,8 +20,6 @@ export const metadata: Metadata = {
   description: "Modern, glossy, highly animated online gift shop serving Dahod.",
 };
 
-import { CartProvider } from "@/context/CartContext";
-
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -30,20 +30,23 @@ export default function RootLayout({
       <body
         className={`${outfit.variable} antialiased min-h-screen flex flex-col font-sans bg-[#0F0F12] text-white`}
       >
-        <CartProvider>
-          <ToastProvider>
-            <CursorGlow />
-            <ScrollProgress />
-            <Navbar />
-            <main className="flex-1 pt-24">
-              <PageTransition>
-                {children}
-              </PageTransition>
-            </main>
-            <Footer />
-          </ToastProvider>
-        </CartProvider>
+        <AuthSessionProvider>
+          <CartProvider>
+            <ToastProvider>
+              <CursorGlow />
+              <ScrollProgress />
+              <Navbar />
+              <main className="flex-1 pt-24">
+                <PageTransition>
+                  {children}
+                </PageTransition>
+              </main>
+              <Footer />
+            </ToastProvider>
+          </CartProvider>
+        </AuthSessionProvider>
       </body>
     </html>
   );
 }
+

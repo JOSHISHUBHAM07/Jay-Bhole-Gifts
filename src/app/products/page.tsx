@@ -23,7 +23,9 @@ const sortOptions = ["Featured", "Price: Low to High", "Price: High to Low", "Ne
 function ProductListingContent() {
     const searchParams = useSearchParams();
     const initialCategory = searchParams.get("category") || "all";
+    const initialSearch = searchParams.get("search") || "";
     const [activeCategory, setActiveCategory] = useState(categories.find(c => c.toLowerCase() === initialCategory.toLowerCase()) || "All");
+    const [searchQuery, setSearchQuery] = useState(initialSearch);
     const [activeSort, setActiveSort] = useState("Featured");
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const [liveProducts, setLiveProducts] = useState<any[]>([]);
@@ -56,10 +58,16 @@ function ProductListingContent() {
     const sourceProducts = liveProducts.length > 0 ? liveProducts : allProducts;
 
     const filteredProducts = sourceProducts.filter((p) => {
-        if (activeCategory === "All") return true;
-        if (activeCategory === "Trending") return p.rating > 4.7;
-        if (activeCategory.toLowerCase() === "personalized") return p.name.toLowerCase().includes("personalized") || p.name.toLowerCase().includes("custom");
-        return p.category.toLowerCase() === activeCategory.toLowerCase();
+        const matchesCategory = activeCategory === "All" ||
+            (activeCategory === "Trending" && p.rating > 4.7) ||
+            (activeCategory.toLowerCase() === "personalized" && (p.name.toLowerCase().includes("personalized") || p.name.toLowerCase().includes("custom"))) ||
+            p.category.toLowerCase() === activeCategory.toLowerCase();
+
+        const matchesSearchText = !searchQuery ||
+            p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            p.category.toLowerCase().includes(searchQuery.toLowerCase());
+
+        return matchesCategory && matchesSearchText;
     });
 
     return (
@@ -68,7 +76,7 @@ function ProductListingContent() {
                 {/* Header */}
                 <div className="mb-14">
                     <h1 className="text-5xl md:text-6xl font-extrabold text-white mb-4 tracking-tight">
-                        {activeCategory === "All" ? "Explore All Gifts" : `${activeCategory} Collection`}
+                        {searchQuery ? `Search Results for "${searchQuery}"` : activeCategory === "All" ? "Explore All Gifts" : `${activeCategory} Collection`}
                     </h1>
                     <p className="text-[#B5B5C0] text-lg max-w-xl">Curated with love, designed to delight.</p>
                 </div>
@@ -159,7 +167,7 @@ function ProductListingContent() {
                                     <Filter className="w-10 h-10 text-[#FF6F91] mb-4" />
                                     <h3 className="text-xl font-extrabold text-white mb-2">No products found</h3>
                                     <p className="text-[#B5B5C0] max-w-sm">Try adjusting your filters.</p>
-                                    <button onClick={() => setActiveCategory("All")} className="mt-6 bg-white/5 border border-white/10 text-white px-6 py-3 rounded-full font-bold hover:bg-[#FF6F91] hover:border-[#FF6F91] transition-all">Clear all</button>
+                                    <button onClick={() => { setActiveCategory("All"); setSearchQuery(""); }} className="mt-6 bg-white/5 border border-white/10 text-white px-6 py-3 rounded-full font-bold hover:bg-[#FF6F91] hover:border-[#FF6F91] transition-all">Clear all</button>
                                 </div>
                             )}
                         </div>
