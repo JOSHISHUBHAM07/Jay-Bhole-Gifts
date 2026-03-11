@@ -15,7 +15,7 @@ export async function GET(request: Request) {
         const maxPrice = searchParams.get('maxPrice');
         const sortParam = searchParams.get('sort') || '-createdAt';
 
-        let query: any = {};
+        const query: any = {};
 
         // Category filtering
         if (category && category !== 'all' && category !== 'trending') {
